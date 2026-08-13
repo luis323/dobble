@@ -91,7 +91,7 @@ func _process(delta: float) -> void:
 	if game_active:
 		if is_instance_valid(center_card):
 			center_card.rotation.y = sin(animation_time * 0.85) * 0.035
-		if is_instance_valid(human_card):
+		if round_active and is_instance_valid(human_card):
 			human_card.rotation.y = -sin(animation_time * 0.92) * 0.028
 
 
@@ -286,7 +286,7 @@ func _create_menu() -> void:
 	box.add_child(guide)
 
 	var version_label := Label.new()
-	version_label.text = "VERSIÓN 1.4.1  •  CARTA GANADORA ANIMADA"
+	version_label.text = "VERSIÓN 1.4.2  •  DERROTA CON CARTA QUIETA"
 	version_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version_label.add_theme_font_size_override("font_size", 17)
 	version_label.add_theme_color_override("font_color", Color("#75ffad"))
@@ -869,6 +869,7 @@ func receive_network_result(winner: int, symbol_id: int, central_index: int, act
 	else:
 		status_label.text = "JUGADOR %d DESCARTÓ CON %s" % [winner + 1, figure_name]
 		status_label.add_theme_color_override("font_color", Color("#ffd36a"))
+		_freeze_local_card()
 		call_deferred("_play_stream", cpu_win_sound)
 		call_deferred("_loss_feedback", false)
 
@@ -1261,6 +1262,7 @@ func _score_round(winner: int, symbol_id: int) -> void:
 	else:
 		status_label.text = "%s DESCARTÓ SU CARTA CON %s" % [CPU_NAMES[winner - 1], figure_name]
 		status_label.add_theme_color_override("font_color", Color("#ffd36a"))
+		_freeze_local_card()
 		call_deferred("_play_stream", cpu_win_sound)
 		call_deferred("_loss_feedback", false)
 
@@ -1283,6 +1285,16 @@ func _animate_local_winning_card(symbol_id: int) -> void:
 	if is_instance_valid(center_card):
 		center_card.fly_away(Vector3(-4.5, 0.15, -4.8))
 	human_card.win_to_center(Vector3(0.0, 0.32, -3.15), symbol_id)
+
+
+func _freeze_local_card() -> void:
+	if not is_instance_valid(human_card):
+		return
+	# Al perder no se reproduce ninguna animación en la carta inferior.
+	# Se mantiene plana, quieta y en su lugar mientras aparece la X roja.
+	human_card.position = Vector3(0.0, 0.12, 3.15)
+	human_card.rotation = Vector3.ZERO
+	human_card.scale = Vector3.ONE
 
 
 func _discard_winner_card(winner: int) -> bool:
@@ -1342,6 +1354,7 @@ func _finish_game(winner: int = -1) -> void:
 	else:
 		var winner_name: String = "JUGADOR %d" % (winner + 1) if network_mode else CPU_NAMES[winner - 1]
 		result_title.text = "GANÓ %s\nFue el primero en quedar sin cartas\n\n%s" % [winner_name, "  •  ".join(summary_parts)]
+		_freeze_local_card()
 		call_deferred("_play_stream", final_lose_sound)
 		call_deferred("_loss_feedback", true)
 	result_panel.show()

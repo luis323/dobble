@@ -87,6 +87,13 @@ Todos comienzan con la misma cantidad de cartas y hay una sola carta central. Ca
 - Después la carta viaja hacia arriba, reemplaza la central anterior y se convierte en la nueva carta compartida.
 - La animación funciona tanto contra CPU como en partidas LAN/Wi‑Fi.
 
+## Versión 1.4.2 — derrota con carta quieta
+
+- La animación de avance se reproduce únicamente cuando tú aciertas.
+- Cuando otro jugador o una CPU gana la ronda, tu carta inferior queda totalmente estática.
+- En la derrota solamente aparecen la X roja y el sonido; la carta no gira, no aumenta de tamaño y no se desplaza.
+- Aplica igualmente al modo contra CPU y a las partidas LAN/Wi‑Fi.
+
 ## Jugar por LAN o Wi‑Fi
 
 1. Todos deben instalar la misma versión de la APK y conectarse a la misma red Wi‑Fi.

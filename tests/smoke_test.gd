@@ -59,6 +59,19 @@ func _run_test() -> void:
 	assert(game.round_active)
 	assert(game._common_symbol(game.player_symbols, game.center_symbols) >= 0)
 
+	# Al perder una ronda, la carta local queda completamente estática bajo la X.
+	var cpu_match: int = game._common_symbol(game.cpu_symbols[0], game.center_symbols)
+	game._score_round(1, cpu_match)
+	await process_frame
+	assert(game.fx_root.get_node_or_null("XDerrotaRonda") != null)
+	var frozen_position: Vector3 = game.human_card.position
+	var frozen_rotation: Vector3 = game.human_card.rotation
+	await create_timer(0.20).timeout
+	assert(game.human_card.position == frozen_position)
+	assert(game.human_card.rotation == frozen_rotation)
+	await create_timer(0.60).timeout
+	assert(game.round_active)
+
 	# Con una última carta, acertar termina la partida de inmediato.
 	game.player_piles[0] = [game.active_card_indices[0]]
 	var last_match: int = game._common_symbol(game.player_symbols, game.center_symbols)
