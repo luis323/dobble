@@ -28,8 +28,18 @@ var difficulty_option: OptionButton
 var result_panel: PanelContainer
 var result_title: Label
 var audio_player: AudioStreamPlayer
+var round_win_sound: AudioStreamWAV
+var cpu_win_sound: AudioStreamWAV
+var final_win_sound: AudioStreamWAV
+var sound_enabled := true
+var sound_toggle: Button
 var touch_layer: Control
 var touch_buttons: Array[Button] = []
+var fx_layer: CanvasLayer
+var fx_root: Control
+var menu_glow_left: TextureRect
+var menu_glow_right: TextureRect
+var animation_time := 0.0
 
 
 func _ready() -> void:
@@ -39,6 +49,19 @@ func _ready() -> void:
 	_create_hud()
 	_create_audio()
 	_show_menu()
+
+
+func _process(delta: float) -> void:
+	animation_time += delta
+	if is_instance_valid(menu_glow_left):
+		menu_glow_left.modulate.a = 0.72 + sin(animation_time * 1.35) * 0.16
+	if is_instance_valid(menu_glow_right):
+		menu_glow_right.modulate.a = 0.68 + cos(animation_time * 1.10) * 0.18
+	if game_active:
+		if is_instance_valid(center_card):
+			center_card.rotation.y = sin(animation_time * 0.85) * 0.035
+		if is_instance_valid(human_card):
+			human_card.rotation.y = -sin(animation_time * 0.92) * 0.028
 
 
 func _notification(what: int) -> void:
@@ -110,8 +133,20 @@ func _create_menu() -> void:
 
 	var shade := ColorRect.new()
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	shade.color = Color(0.012, 0.021, 0.08, 0.92)
+	shade.color = Color("#05091e")
 	menu_layer.add_child(shade)
+
+	menu_glow_left = _radial_glow(Color(0.12, 0.76, 1.0, 0.30))
+	menu_glow_left.position = Vector2(-170, 110)
+	menu_glow_left.size = Vector2(440, 440)
+	menu_layer.add_child(menu_glow_left)
+
+	menu_glow_right = _radial_glow(Color(0.68, 0.20, 1.0, 0.26))
+	menu_glow_right.anchor_left = 1.0
+	menu_glow_right.anchor_right = 1.0
+	menu_glow_right.position = Vector2(-250, 770)
+	menu_glow_right.size = Vector2(390, 390)
+	menu_layer.add_child(menu_glow_right)
 
 	var center := CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -123,22 +158,33 @@ func _create_menu() -> void:
 
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(650, 0)
-	panel.add_theme_stylebox_override("panel", _panel_style(Color("#121d4d"), Color("#49d9ff"), 26, 3))
+	panel.add_theme_stylebox_override("panel", _panel_style(Color(0.055, 0.085, 0.22, 0.97), Color("#42d9ff"), 32, 2))
 	center.add_child(panel)
 
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 13)
+	box.add_theme_constant_override("separation", 12)
 	panel.add_child(box)
+
+	var badge := Label.new()
+	badge.text = "  ⚡  DESAFÍO DE REFLEJOS  ⚡  "
+	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	badge.add_theme_font_size_override("font_size", 17)
+	badge.add_theme_color_override("font_color", Color("#061126"))
+	badge.add_theme_stylebox_override("normal", _panel_style(Color("#62e7ff"), Color("#b8f6ff"), 18, 1, 8))
+	box.add_child(badge)
 
 	var title := Label.new()
 	title.text = "SÍMBOLOS RELÁMPAGO 3D"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 40)
-	title.add_theme_color_override("font_color", Color("#7cecff"))
+	title.add_theme_font_size_override("font_size", 42)
+	title.add_theme_color_override("font_color", Color("#f1fbff"))
+	title.add_theme_color_override("font_shadow_color", Color(0.18, 0.88, 1.0, 0.65))
+	title.add_theme_constant_override("shadow_offset_x", 3)
+	title.add_theme_constant_override("shadow_offset_y", 3)
 	box.add_child(title)
 
 	var subtitle := Label.new()
-	subtitle.text = "Arriba está la carta central. Abajo está tu carta."
+	subtitle.text = "Encuentra el símbolo repetido antes que las CPU"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	subtitle.add_theme_font_size_override("font_size", 21)
@@ -164,15 +210,22 @@ func _create_menu() -> void:
 	difficulty_option.custom_minimum_size.y = 54
 	box.add_child(difficulty_option)
 
+	sound_toggle = Button.new()
+	sound_toggle.text = "🔊  SONIDO: ACTIVADO"
+	sound_toggle.custom_minimum_size.y = 50
+	_style_button(sound_toggle, Color("#1b3861"), 18)
+	sound_toggle.pressed.connect(_toggle_sound)
+	box.add_child(sound_toggle)
+
 	var play := Button.new()
-	play.text = "JUGAR"
+	play.text = "⚡  COMENZAR PARTIDA"
 	play.custom_minimum_size.y = 68
 	_style_button(play, Color("#16bce4"), 27)
 	play.pressed.connect(start_game)
 	box.add_child(play)
 
 	var guide := Label.new()
-	guide.text = "Toca en TU carta la figura que también aparece arriba. El más rápido gana esa carta central. Cuando se acaba el mazo, gana quien consiguió más cartas."
+	guide.text = "MIRA ARRIBA  →  ENCUENTRA LA PAREJA  →  TOCA ABAJO\nCada carta ganada suma un punto."
 	guide.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	guide.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	guide.add_theme_font_size_override("font_size", 18)
@@ -180,7 +233,7 @@ func _create_menu() -> void:
 	box.add_child(guide)
 
 	var version_label := Label.new()
-	version_label.text = "VERSIÓN 1.1.3 — TOQUE SEGURO"
+	version_label.text = "VERSIÓN 1.2.0  •  EDICIÓN CELEBRACIÓN"
 	version_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version_label.add_theme_font_size_override("font_size", 17)
 	version_label.add_theme_color_override("font_color", Color("#75ffad"))
@@ -332,10 +385,62 @@ func _create_hud() -> void:
 	result_box.add_child(back)
 	result_panel.hide()
 
+	fx_layer = CanvasLayer.new()
+	fx_layer.layer = 15
+	add_child(fx_layer)
+	fx_root = Control.new()
+	fx_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	fx_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fx_layer.add_child(fx_root)
+
 
 func _create_audio() -> void:
 	audio_player = AudioStreamPlayer.new()
+	audio_player.bus = "Master"
 	add_child(audio_player)
+	round_win_sound = _make_chime([[659.25, 0.10], [783.99, 0.10], [987.77, 0.20]], 0.30)
+	cpu_win_sound = _make_chime([[392.00, 0.11], [329.63, 0.18]], 0.18)
+	final_win_sound = _make_chime([[523.25, 0.11], [659.25, 0.11], [783.99, 0.11], [1046.50, 0.32]], 0.32)
+
+
+func _toggle_sound() -> void:
+	sound_enabled = not sound_enabled
+	sound_toggle.text = "🔊  SONIDO: ACTIVADO" if sound_enabled else "🔇  SONIDO: DESACTIVADO"
+
+
+func _make_chime(notes: Array, volume: float) -> AudioStreamWAV:
+	var mix_rate := 22050
+	var sample_count := 0
+	for note in notes:
+		sample_count += int(float(note[1]) * mix_rate)
+	var bytes := PackedByteArray()
+	bytes.resize(sample_count * 2)
+	var sample_cursor := 0
+	for note in notes:
+		var frequency := float(note[0])
+		var duration := float(note[1])
+		var note_samples := int(duration * mix_rate)
+		for i in note_samples:
+			var local_time := float(i) / float(mix_rate)
+			var progress := float(i) / float(maxi(1, note_samples - 1))
+			var envelope := sin(PI * progress) * exp(-1.7 * progress)
+			var wave := sin(TAU * frequency * local_time) + 0.22 * sin(TAU * frequency * 2.0 * local_time)
+			var value := clampi(int(wave * envelope * volume * 32767.0), -32768, 32767)
+			bytes.encode_s16(sample_cursor * 2, value)
+			sample_cursor += 1
+	var stream := AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = mix_rate
+	stream.stereo = false
+	stream.data = bytes
+	return stream
+
+
+func _play_stream(stream: AudioStreamWAV) -> void:
+	if not sound_enabled or not is_instance_valid(audio_player) or stream == null:
+		return
+	audio_player.stream = stream
+	audio_player.play()
 
 
 func start_game() -> void:
@@ -414,10 +519,12 @@ func _rebuild_touch_buttons() -> void:
 		button.offset_top = offset.y - touch_radius
 		button.offset_bottom = offset.y + touch_radius
 		button.focus_mode = Control.FOCUS_NONE
+		button.flat = true
 		button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		button.add_theme_stylebox_override("normal", _touch_style(Color(0, 0, 0, 0)))
-		button.add_theme_stylebox_override("hover", _touch_style(Color(0.18, 0.88, 1.0, 0.12)))
-		button.add_theme_stylebox_override("pressed", _touch_style(Color(0.18, 0.88, 1.0, 0.30)))
+		# Todos los estados son totalmente invisibles. Esto evita los rectángulos
+		# oscuros predeterminados de Android al desactivar un botón tras pulsarlo.
+		for state in ["normal", "hover", "pressed", "disabled", "focus", "hover_pressed"]:
+			button.add_theme_stylebox_override(state, _touch_style(Color.TRANSPARENT))
 		button.pressed.connect(_on_human_symbol.bind(player_symbols[index]))
 		touch_layer.add_child(button)
 		touch_buttons.append(button)
@@ -527,12 +634,15 @@ func _score_round(winner: int, symbol_id: int) -> void:
 	if winner == 0:
 		status_label.text = "¡GANASTE ESTA CARTA! ERA %s" % figure_name
 		status_label.add_theme_color_override("font_color", Color("#75ffad"))
+		call_deferred("_play_stream", round_win_sound)
+		call_deferred("_round_celebration", figure_name)
 	else:
 		status_label.text = "%s GANÓ LA CARTA CON %s" % [CPU_NAMES[winner - 1], figure_name]
 		status_label.add_theme_color_override("font_color", Color("#ffd36a"))
+		call_deferred("_play_stream", cpu_win_sound)
 
-	# Cambio sencillo: no ejecutar vibración, audio ni tweens 3D desde un toque.
-	await get_tree().create_timer(0.42).timeout
+	# El sonido y la celebración son diferidos y 2D: el toque nunca anima física 3D.
+	await get_tree().create_timer(0.72).timeout
 	if not game_active:
 		return
 	if deck_cursor >= deck.size():
@@ -564,9 +674,96 @@ func _finish_game() -> void:
 		result_title.text = "¡EMPATE!\n%s\n\n%s" % [" Y ".join(winner_names), "  •  ".join(summary_parts)]
 	elif winner_names[0] == "TÚ":
 		result_title.text = "¡GANASTE LA PARTIDA!\nConseguiste %d cartas\n\n%s" % [highest, "  •  ".join(summary_parts)]
+		call_deferred("_play_stream", final_win_sound)
+		call_deferred("_super_celebration")
 	else:
 		result_title.text = "GANÓ %s\nCon %d cartas\n\n%s" % [winner_names[0], highest, "  •  ".join(summary_parts)]
 	result_panel.show()
+
+
+func _round_celebration(figure_name: String) -> void:
+	if not is_instance_valid(fx_root) or not game_active:
+		return
+	var banner := Label.new()
+	banner.text = "⚡  +1 CARTA  •  %s  ⚡" % figure_name
+	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner.anchor_left = 0.08
+	banner.anchor_right = 0.92
+	banner.anchor_top = 0.43
+	banner.anchor_bottom = 0.57
+	banner.add_theme_font_size_override("font_size", 31)
+	banner.add_theme_color_override("font_color", Color("#071229"))
+	banner.add_theme_stylebox_override("normal", _panel_style(Color("#75ffad"), Color.WHITE, 24, 3, 12))
+	banner.scale = Vector2(0.2, 0.2)
+	banner.pivot_offset = Vector2(302, 85)
+	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fx_root.add_child(banner)
+	var banner_tween := create_tween()
+	banner_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	banner_tween.tween_property(banner, "scale", Vector2.ONE, 0.24)
+	banner_tween.tween_interval(0.25)
+	banner_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	banner_tween.tween_property(banner, "modulate:a", 0.0, 0.20)
+	banner_tween.tween_callback(banner.queue_free)
+	_spawn_confetti(18, 0.50, 0.92)
+
+
+func _super_celebration() -> void:
+	if not is_instance_valid(fx_root):
+		return
+	var flash := ColorRect.new()
+	flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	flash.color = Color(0.25, 0.95, 1.0, 0.0)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fx_root.add_child(flash)
+	var flash_tween := create_tween()
+	flash_tween.tween_property(flash, "color:a", 0.34, 0.16)
+	flash_tween.tween_property(flash, "color:a", 0.0, 0.55)
+	flash_tween.tween_callback(flash.queue_free)
+
+	var crown := Label.new()
+	crown.text = "★  CAMPEÓN RELÁMPAGO  ★"
+	crown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	crown.anchor_left = 0.05
+	crown.anchor_right = 0.95
+	crown.anchor_top = 0.15
+	crown.anchor_bottom = 0.28
+	crown.add_theme_font_size_override("font_size", 35)
+	crown.add_theme_color_override("font_color", Color("#fff07a"))
+	crown.add_theme_color_override("font_shadow_color", Color("#8b4dff"))
+	crown.add_theme_constant_override("shadow_offset_x", 4)
+	crown.add_theme_constant_override("shadow_offset_y", 4)
+	crown.scale = Vector2(0.1, 0.1)
+	crown.pivot_offset = Vector2(324, 80)
+	crown.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fx_root.add_child(crown)
+	var crown_tween := create_tween()
+	crown_tween.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	crown_tween.tween_property(crown, "scale", Vector2.ONE, 0.70)
+	crown_tween.tween_interval(1.1)
+	crown_tween.tween_property(crown, "modulate:a", 0.0, 0.35)
+	crown_tween.tween_callback(crown.queue_free)
+	_spawn_confetti(46, 0.05, 0.95)
+
+
+func _spawn_confetti(amount: int, top_ratio: float, bottom_ratio: float) -> void:
+	var viewport_size := get_viewport().get_visible_rect().size
+	var colors := [Color("#62e7ff"), Color("#ff5ebc"), Color("#fff168"), Color("#75ffad"), Color("#9c72ff")]
+	for i in amount:
+		var piece := ColorRect.new()
+		piece.color = colors[i % colors.size()]
+		piece.size = Vector2(randf_range(8.0, 18.0), randf_range(14.0, 30.0))
+		piece.position = Vector2(randf_range(8.0, viewport_size.x - 24.0), randf_range(viewport_size.y * top_ratio, viewport_size.y * bottom_ratio))
+		piece.rotation = randf_range(-PI, PI)
+		piece.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		fx_root.add_child(piece)
+		var destination := piece.position + Vector2(randf_range(-95.0, 95.0), randf_range(130.0, 330.0))
+		var piece_tween := create_tween().set_parallel(true)
+		piece_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		piece_tween.tween_property(piece, "position", destination, randf_range(0.65, 1.25))
+		piece_tween.tween_property(piece, "rotation", piece.rotation + randf_range(3.0, 8.0), randf_range(0.65, 1.25))
+		piece_tween.tween_property(piece, "modulate:a", 0.0, randf_range(0.65, 1.25))
+		piece_tween.chain().tween_callback(piece.queue_free)
 
 
 func _clear_center_card() -> void:
@@ -646,6 +843,24 @@ func _setting_label(text_value: String) -> Label:
 	return label
 
 
+func _radial_glow(color: Color) -> TextureRect:
+	var gradient := Gradient.new()
+	gradient.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
+	gradient.colors = PackedColorArray([color, Color(color.r, color.g, color.b, color.a * 0.28), Color(color.r, color.g, color.b, 0.0)])
+	var texture := GradientTexture2D.new()
+	texture.width = 256
+	texture.height = 256
+	texture.fill = GradientTexture2D.FILL_RADIAL
+	texture.fill_from = Vector2(0.5, 0.5)
+	texture.fill_to = Vector2(1.0, 0.5)
+	texture.gradient = gradient
+	var glow := TextureRect.new()
+	glow.texture = texture
+	glow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return glow
+
+
 func _style_button(button: BaseButton, color: Color, font_size: int = 20) -> void:
 	button.add_theme_font_size_override("font_size", font_size)
 	button.add_theme_color_override("font_color", Color.WHITE)
@@ -655,14 +870,14 @@ func _style_button(button: BaseButton, color: Color, font_size: int = 20) -> voi
 	button.add_theme_stylebox_override("pressed", _panel_style(color.darkened(0.18), Color.WHITE, 15, 3))
 
 
-func _panel_style(color: Color, border: Color, radius: int, width: int) -> StyleBoxFlat:
+func _panel_style(color: Color, border: Color, radius: int, width: int, margin: int = 22) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = color
 	style.border_color = border
 	style.set_border_width_all(width)
 	style.set_corner_radius_all(radius)
-	style.content_margin_left = 28
-	style.content_margin_right = 28
-	style.content_margin_top = 22
-	style.content_margin_bottom = 22
+	style.content_margin_left = margin
+	style.content_margin_right = margin
+	style.content_margin_top = margin
+	style.content_margin_bottom = margin
 	return style
