@@ -197,6 +197,24 @@ func fly_away(target: Vector3) -> void:
 	tween.tween_property(self, "rotation:y", rotation.y + TAU, 0.45)
 
 
+func win_to_center(target: Vector3, symbol_id: int) -> void:
+	# Primero la carta salta hacia la cámara para que el acierto sea evidente.
+	# Después baja sobre la carta central y ocupa su lugar en la mesa.
+	celebrate(symbol_id)
+	var original_scale := scale
+	var front_position := Vector3(0.0, 2.25, 1.15)
+	var tween := create_tween().set_parallel(true)
+	tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(self, "position", front_position, 0.28)
+	tween.tween_property(self, "scale", original_scale * 1.24, 0.28)
+	tween.tween_property(self, "rotation:z", -0.12, 0.28)
+	# Una pequeña pausa deja ver la carta ganadora antes de convertirla en central.
+	tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(self, "position", target, 0.48).set_delay(0.40)
+	tween.tween_property(self, "scale", original_scale, 0.48).set_delay(0.40)
+	tween.tween_property(self, "rotation:z", 0.0, 0.48).set_delay(0.40)
+
+
 func _material(color: Color, metallic: float, roughness: float, emission: Color = Color.BLACK) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color

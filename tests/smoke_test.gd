@@ -54,7 +54,8 @@ func _run_test() -> void:
 	assert(game.player_piles[1].size() == 20)
 	assert(game.center_symbols == first_personal_card)
 	assert(game.center_symbols != first_center_card)
-	await create_timer(0.8).timeout
+	assert(game.human_card.position.y > 0.12)
+	await create_timer(1.1).timeout
 	assert(game.round_active)
 	assert(game._common_symbol(game.player_symbols, game.center_symbols) >= 0)
 
@@ -63,7 +64,7 @@ func _run_test() -> void:
 	var last_match: int = game._common_symbol(game.player_symbols, game.center_symbols)
 	game._score_round(0, last_match)
 	assert(game.player_piles[0].is_empty())
-	await create_timer(0.8).timeout
+	await create_timer(1.1).timeout
 	assert(not game.game_active)
 	assert(game.result_panel.visible)
 	assert("GANASTE LA PARTIDA" in game.result_title.text)

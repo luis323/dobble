@@ -4,6 +4,7 @@ const Card := preload("res://scripts/card_3d.gd")
 const Lan := preload("res://scripts/lan_manager.gd")
 const CPU_NAMES := ["CPU AZUL", "CPU ROSA", "CPU LIMA"]
 const WRONG_PENALTY_SECONDS := 5
+const WIN_CARD_ANIMATION_SECONDS := 1.02
 
 var total_players := 2
 var difficulty := 1
@@ -285,7 +286,7 @@ func _create_menu() -> void:
 	box.add_child(guide)
 
 	var version_label := Label.new()
-	version_label.text = "VERSIÓN 1.4.0  •  MULTIJUGADOR LAN / WI‑FI"
+	version_label.text = "VERSIÓN 1.4.1  •  CARTA GANADORA ANIMADA"
 	version_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version_label.add_theme_font_size_override("font_size", 17)
 	version_label.add_theme_color_override("font_color", Color("#75ffad"))
@@ -862,6 +863,7 @@ func receive_network_result(winner: int, symbol_id: int, central_index: int, act
 	if winner == network_player_index:
 		status_label.text = "¡CORRECTO! DESCARTASTE %s" % figure_name
 		status_label.add_theme_color_override("font_color", Color("#75ffad"))
+		_animate_local_winning_card(symbol_id)
 		call_deferred("_play_stream", round_win_sound)
 		call_deferred("_round_celebration", figure_name)
 	else:
@@ -870,7 +872,8 @@ func receive_network_result(winner: int, symbol_id: int, central_index: int, act
 		call_deferred("_play_stream", cpu_win_sound)
 		call_deferred("_loss_feedback", false)
 
-	await get_tree().create_timer(0.72).timeout
+	var result_delay := WIN_CARD_ANIMATION_SECONDS if winner == network_player_index else 0.72
+	await get_tree().create_timer(result_delay).timeout
 	if not game_active or current_transition != transition_token:
 		return
 	if finished:
@@ -1252,6 +1255,7 @@ func _score_round(winner: int, symbol_id: int) -> void:
 	if winner == 0:
 		status_label.text = "¡CORRECTO! DESCARTASTE %s" % figure_name
 		status_label.add_theme_color_override("font_color", Color("#75ffad"))
+		_animate_local_winning_card(symbol_id)
 		call_deferred("_play_stream", round_win_sound)
 		call_deferred("_round_celebration", figure_name)
 	else:
@@ -1261,13 +1265,24 @@ func _score_round(winner: int, symbol_id: int) -> void:
 		call_deferred("_loss_feedback", false)
 
 	# El sonido y la celebración son diferidos y 2D: el toque nunca anima física 3D.
-	await get_tree().create_timer(0.72).timeout
+	var result_delay := WIN_CARD_ANIMATION_SECONDS if winner == 0 else 0.72
+	await get_tree().create_timer(result_delay).timeout
 	if not game_active or current_transition != transition_token:
 		return
 	if finished:
 		_finish_game(winner)
 	else:
 		_start_round()
+
+
+func _animate_local_winning_card(symbol_id: int) -> void:
+	if not is_instance_valid(human_card):
+		return
+	# La central anterior sale hacia un costado mientras la carta propia avanza,
+	# se acerca a la cámara y finalmente cae en el centro como nueva carta común.
+	if is_instance_valid(center_card):
+		center_card.fly_away(Vector3(-4.5, 0.15, -4.8))
+	human_card.win_to_center(Vector3(0.0, 0.32, -3.15), symbol_id)
 
 
 func _discard_winner_card(winner: int) -> bool:

@@ -80,6 +80,13 @@ Todos comienzan con la misma cantidad de cartas y hay una sola carta central. Ca
 - Mantiene el modo contra CPU, las cantidades de 20/30/40/50/70 cartas y la regla del primero sin cartas.
 - Usa solamente la red local: puerto de juego `7359` y descubrimiento `7360`.
 
+## Versión 1.4.1 — carta ganadora al frente
+
+- Al acertar, tu carta inferior salta hacia la cámara y aumenta de tamaño.
+- La figura correcta se ilumina mientras la carta queda un instante al frente.
+- Después la carta viaja hacia arriba, reemplaza la central anterior y se convierte en la nueva carta compartida.
+- La animación funciona tanto contra CPU como en partidas LAN/Wi‑Fi.
+
 ## Jugar por LAN o Wi‑Fi
 
 1. Todos deben instalar la misma versión de la APK y conectarse a la misma red Wi‑Fi.
