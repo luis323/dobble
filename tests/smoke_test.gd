@@ -32,6 +32,23 @@ func _run_test() -> void:
 	await process_frame
 	assert(game.scores[0] == 0)
 	assert(game.round_active)
+	assert(game.human_locked)
+	assert(game.WRONG_PENALTY_SECONDS == 5)
+	for button in game.touch_buttons:
+		assert(button.disabled)
+	# Aunque un dispositivo envíe otro evento, el bloqueo también se valida en
+	# la lógica y no depende únicamente del estado visual del botón.
+	game._on_human_symbol(matching)
+	assert(game.scores[0] == 0)
+	# Cancela solamente el intento de la CPU para poder esperar y comprobar los
+	# cinco segundos completos de la penalización del jugador.
+	game.cpu_round_token += 1
+	await create_timer(5.15).timeout
+	assert(not game.human_locked)
+	assert(game.round_active)
+	for button in game.touch_buttons:
+		assert(not button.disabled)
+	assert("YA PUEDES JUGAR" in game.status_label.text)
 	# La selección usa botones 2D y nunca entra en el raycast físico 3D.
 	game.touch_buttons[matching_index].pressed.emit()
 	game.touch_buttons[matching_index].pressed.emit()
@@ -49,7 +66,7 @@ func _run_test() -> void:
 	assert(game.result_panel.visible)
 	assert("GANASTE LA PARTIDA" in game.result_title.text)
 	assert(game.fx_root.get_child_count() > 0)
-	print("OK: botones invisibles, toque seguro, sonido diferido y celebración 2D.")
+	print("OK: penalización de 5 segundos, botones invisibles y toque seguro.")
 	game.queue_free()
 	await process_frame
 	quit(0)

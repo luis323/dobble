@@ -48,6 +48,13 @@ Todos miran la carta central de arriba. Cada jugador o CPU busca en su propia ca
 - Mantiene el toque seguro: audio y efectos 2D se ejecutan después del evento táctil.
 - Verifica partidas con 2, 3 y 4 participantes y puntuación independiente para cada CPU.
 
+## Versión 1.2.1 — penalización
+
+- Un solo toque en un símbolo incorrecto bloquea la carta del jugador durante 5 segundos.
+- Muestra una cuenta regresiva clara y vuelve a habilitar los símbolos automáticamente.
+- Las CPU continúan compitiendo durante la penalización.
+- La cuenta regresiva se cancela de forma segura si termina la ronda o se vuelve al menú.
+
 ## Compilar desde Termux
 
 1. Descomprime el proyecto y entra a su carpeta:

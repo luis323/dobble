@@ -2,6 +2,7 @@ extends Node3D
 
 const Card := preload("res://scripts/card_3d.gd")
 const CPU_NAMES := ["CPU AZUL", "CPU ROSA", "CPU LIMA"]
+const WRONG_PENALTY_SECONDS := 5
 
 var total_players := 2
 var difficulty := 1
@@ -17,6 +18,8 @@ var center_card: Card3D
 var round_active := false
 var game_active := false
 var cpu_round_token := 0
+var penalty_token := 0
+var human_locked := false
 
 var menu_layer: CanvasLayer
 var hud_layer: CanvasLayer
@@ -233,7 +236,7 @@ func _create_menu() -> void:
 	box.add_child(guide)
 
 	var version_label := Label.new()
-	version_label.text = "VERSIÓN 1.2.0  •  EDICIÓN CELEBRACIÓN"
+	version_label.text = "VERSIÓN 1.2.1  •  PENALIZACIÓN DE 5 SEGUNDOS"
 	version_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version_label.add_theme_font_size_override("font_size", 17)
 	version_label.add_theme_color_override("font_color", Color("#75ffad"))
@@ -445,6 +448,8 @@ func _play_stream(stream: AudioStreamWAV) -> void:
 
 func start_game() -> void:
 	_clear_cards()
+	penalty_token += 1
+	human_locked = false
 	total_players = players_option.get_selected_id()
 	difficulty = difficulty_option.get_selected_id()
 	scores.clear()
@@ -476,6 +481,8 @@ func return_to_menu() -> void:
 	game_active = false
 	round_active = false
 	cpu_round_token += 1
+	penalty_token += 1
+	human_locked = false
 	_clear_cards()
 	_show_menu()
 
@@ -562,6 +569,8 @@ func _start_round() -> void:
 
 	round_active = false
 	cpu_round_token += 1
+	penalty_token += 1
+	human_locked = false
 	_clear_center_card()
 
 	center_symbols = _next_card()
@@ -587,7 +596,7 @@ func _next_card() -> Array[int]:
 
 
 func _on_human_symbol(symbol_id: int) -> void:
-	if not game_active or not round_active:
+	if not game_active or not round_active or human_locked:
 		return
 	if not is_instance_valid(human_card) or not is_instance_valid(center_card):
 		return
@@ -600,8 +609,27 @@ func _on_human_symbol(symbol_id: int) -> void:
 	if symbol_id == matching:
 		_score_round(0, matching)
 	else:
-		status_label.text = "ESA FIGURA NO ESTÁ ARRIBA — SIGUE BUSCANDO"
+		human_locked = true
+		penalty_token += 1
+		var current_penalty := penalty_token
+		_set_touch_enabled(false)
+		status_label.text = "¡INCORRECTO! TU CARTA SE BLOQUEA %d SEGUNDOS" % WRONG_PENALTY_SECONDS
 		status_label.add_theme_color_override("font_color", Color("#ff829f"))
+		call_deferred("_wrong_penalty_countdown", current_penalty)
+
+
+func _wrong_penalty_countdown(token: int) -> void:
+	for seconds_left in range(WRONG_PENALTY_SECONDS, 0, -1):
+		if not game_active or not round_active or token != penalty_token:
+			return
+		status_label.text = "⛔ INCORRECTO — BLOQUEADO %d..." % seconds_left
+		await get_tree().create_timer(1.0).timeout
+	if not game_active or not round_active or token != penalty_token:
+		return
+	human_locked = false
+	_set_touch_enabled(true)
+	status_label.text = "¡YA PUEDES JUGAR! BUSCA LA FIGURA REPETIDA"
+	status_label.add_theme_color_override("font_color", Color("#7cecff"))
 
 
 func _schedule_cpus(token: int) -> void:
@@ -625,8 +653,10 @@ func _score_round(winner: int, symbol_id: int) -> void:
 	if winner < 0 or winner >= scores.size() or symbol_id < 0:
 		return
 	round_active = false
+	human_locked = false
 	_set_touch_enabled(false)
 	cpu_round_token += 1
+	penalty_token += 1
 	scores[winner] += 1
 	_update_score()
 
@@ -654,7 +684,9 @@ func _score_round(winner: int, symbol_id: int) -> void:
 func _finish_game() -> void:
 	game_active = false
 	round_active = false
+	human_locked = false
 	cpu_round_token += 1
+	penalty_token += 1
 
 	var highest := -1
 	for score in scores:
