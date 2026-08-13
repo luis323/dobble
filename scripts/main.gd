@@ -179,6 +179,13 @@ func _create_menu() -> void:
 	guide.add_theme_color_override("font_color", Color("#aebfe8"))
 	box.add_child(guide)
 
+	var version_label := Label.new()
+	version_label.text = "VERSIÓN 1.1.3 — TOQUE SEGURO"
+	version_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	version_label.add_theme_font_size_override("font_size", 17)
+	version_label.add_theme_color_override("font_color", Color("#75ffad"))
+	box.add_child(version_label)
+
 
 func _create_hud() -> void:
 	hud_layer = CanvasLayer.new()
@@ -484,16 +491,10 @@ func _on_human_symbol(symbol_id: int) -> void:
 		call_deferred("_start_round")
 		return
 	if symbol_id == matching:
-		human_card.celebrate(symbol_id)
-		center_card.celebrate(symbol_id)
 		_score_round(0, matching)
 	else:
-		human_card.wrong(symbol_id)
 		status_label.text = "ESA FIGURA NO ESTÁ ARRIBA — SIGUE BUSCANDO"
 		status_label.add_theme_color_override("font_color", Color("#ff829f"))
-		_play_tone(170.0, 0.12, 0.18)
-		if OS.has_feature("mobile"):
-			Input.vibrate_handheld(55)
 
 
 func _schedule_cpus(token: int) -> void:
@@ -526,20 +527,12 @@ func _score_round(winner: int, symbol_id: int) -> void:
 	if winner == 0:
 		status_label.text = "¡GANASTE ESTA CARTA! ERA %s" % figure_name
 		status_label.add_theme_color_override("font_color", Color("#75ffad"))
-		_play_tone(760.0, 0.16, 0.22)
-		if is_instance_valid(center_card):
-			center_card.fly_away(Vector3(0, 0.28, 7.2))
-		if OS.has_feature("mobile"):
-			Input.vibrate_handheld(28)
 	else:
 		status_label.text = "%s GANÓ LA CARTA CON %s" % [CPU_NAMES[winner - 1], figure_name]
 		status_label.add_theme_color_override("font_color", Color("#ffd36a"))
-		_play_tone(310.0, 0.14, 0.16)
-		var side := -1.0 if winner % 2 == 1 else 1.0
-		if is_instance_valid(center_card):
-			center_card.fly_away(Vector3(side * 9.0, 0.28, -3.0 + winner))
 
-	await get_tree().create_timer(0.68).timeout
+	# Cambio sencillo: no ejecutar vibración, audio ni tweens 3D desde un toque.
+	await get_tree().create_timer(0.42).timeout
 	if not game_active:
 		return
 	if deck_cursor >= deck.size():
@@ -571,7 +564,6 @@ func _finish_game() -> void:
 		result_title.text = "¡EMPATE!\n%s\n\n%s" % [" Y ".join(winner_names), "  •  ".join(summary_parts)]
 	elif winner_names[0] == "TÚ":
 		result_title.text = "¡GANASTE LA PARTIDA!\nConseguiste %d cartas\n\n%s" % [highest, "  •  ".join(summary_parts)]
-		_play_tone(980.0, 0.30, 0.24)
 	else:
 		result_title.text = "GANÓ %s\nCon %d cartas\n\n%s" % [winner_names[0], highest, "  •  ".join(summary_parts)]
 	result_panel.show()
@@ -644,30 +636,6 @@ func _generate_projective_deck() -> Array:
 		infinity.append(point)
 	cards.append(infinity)
 	return cards
-
-
-func _play_tone(frequency: float, duration: float, volume: float) -> void:
-	# Algunos controladores de audio Android se cierran al reemplazar un WAV
-	# generado durante un evento táctil. La vibración y animación siguen activas.
-	if OS.has_feature("mobile"):
-		return
-	if not is_instance_valid(audio_player):
-		return
-	var sample_rate := 22050
-	var sample_count := int(sample_rate * duration)
-	var data := PackedByteArray()
-	data.resize(sample_count * 2)
-	for i in sample_count:
-		var fade := 1.0 - float(i) / float(sample_count)
-		var value := int(sin(TAU * frequency * float(i) / float(sample_rate)) * 32767.0 * volume * fade)
-		data.encode_s16(i * 2, value)
-	var wave := AudioStreamWAV.new()
-	wave.format = AudioStreamWAV.FORMAT_16_BITS
-	wave.mix_rate = sample_rate
-	wave.stereo = false
-	wave.data = data
-	audio_player.stream = wave
-	audio_player.play()
 
 
 func _setting_label(text_value: String) -> Label:

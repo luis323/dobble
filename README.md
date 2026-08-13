@@ -33,6 +33,12 @@ Todos miran la carta central de arriba. Cada jugador o CPU busca en su propia ca
 - Las áreas físicas de las figuras ya no reciben toques ni raycasts en Android.
 - Conserva las figuras, animaciones, puntuación y zonas táctiles grandes.
 
+## Versión 1.1.3 — toque seguro
+
+- Elimina vibración, audio procedural y tweens 3D durante la selección.
+- Mantiene los botones 2D y realiza el cambio de carta de forma sencilla.
+- Muestra la versión dentro del menú para comprobar que la APK instalada es la nueva.
+
 ## Compilar desde Termux
 
 1. Descomprime el proyecto y entra a su carpeta:
