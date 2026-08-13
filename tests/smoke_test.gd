@@ -19,14 +19,20 @@ func _run_test() -> void:
 	var first_center_card: Array[int] = game.center_symbols.duplicate()
 	var matching: int = game._common_symbol(game.player_symbols, game.center_symbols)
 	assert(matching >= 0)
-	game._on_human_symbol(matching)
+	var android_touch := InputEventScreenTouch.new()
+	android_touch.pressed = true
+	android_touch.position = Vector2(360, 960)
+	game.human_card._on_symbol_input(null, android_touch, Vector3.ZERO, Vector3.UP, 0, matching)
+	# Un segundo evento para el mismo toque no debe puntuar ni procesarse otra vez.
+	game.human_card._on_symbol_input(null, android_touch, Vector3.ZERO, Vector3.UP, 0, matching)
+	await process_frame
 	assert(game.scores[0] == 1)
 	await create_timer(0.8).timeout
 	assert(game.player_symbols == fixed_personal_card)
 	assert(game.center_symbols != first_center_card)
 	assert(game.deck_cursor == 4)
 	assert(game.deck.size() - game.deck_cursor == 27)
-	print("OK: pantalla dividida, carta personal fija, premio central y puntuación.")
+	print("OK: toque Android doble seguro, carta personal fija y puntuación.")
 	game.queue_free()
 	await process_frame
 	quit(0)

@@ -32,6 +32,7 @@ var card_radius := 2.8
 var symbols: Array[int] = []
 var _base: MeshInstance3D
 var _symbol_nodes: Array[Node3D] = []
+var _touch_locked := false
 
 
 static func get_symbol_name(symbol_id: int) -> String:
@@ -162,8 +163,23 @@ func _create_symbol(symbol_id: int, pos: Vector3, index: int) -> void:
 func _on_symbol_input(_camera: Node, event: InputEvent, _event_position: Vector3, _normal: Vector3, _shape_idx: int, symbol_id: int) -> void:
 	var pressed: bool = event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed
 	pressed = pressed or (event is InputEventScreenTouch and event.pressed)
-	if pressed:
-		symbol_pressed.emit(symbol_id)
+	if not pressed or _touch_locked or not interactive:
+		return
+
+	# Android puede enviar toque y clic emulado en el mismo fotograma. Emitir la
+	# señal de forma diferida evita cambiar nodos dentro del evento de física.
+	_touch_locked = true
+	call_deferred("_emit_safe_symbol", symbol_id)
+
+
+func _emit_safe_symbol(symbol_id: int) -> void:
+	if not is_inside_tree() or not interactive or not symbols.has(symbol_id):
+		_touch_locked = false
+		return
+	symbol_pressed.emit(symbol_id)
+	await get_tree().create_timer(0.16).timeout
+	if is_instance_valid(self):
+		_touch_locked = false
 
 
 func celebrate(symbol_id: int) -> void:

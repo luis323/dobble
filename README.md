@@ -20,6 +20,13 @@ Juego de reflejos original tipo Dobble para Android, hecho con Godot 4.4.1. No i
 
 Todos miran la carta central de arriba. Cada jugador o CPU busca en su propia carta el único símbolo repetido. Si tú lo encuentras primero, toca esa figura en tu carta de abajo y ganas la carta central. Después aparece otra carta central. La partida termina cuando se agota el mazo y gana quien haya acumulado más cartas; puede haber empate.
 
+## Versión 1.1.1
+
+- Corrige el cierre de la aplicación al tocar una figura en Android.
+- Filtra el toque y el clic duplicados enviados por algunos dispositivos.
+- Procesa la puntuación fuera del evento físico y valida las cartas antes de animarlas.
+- Mantiene la respuesta visual y la vibración; el sonido procedural queda desactivado en Android por estabilidad.
+
 ## Compilar desde Termux
 
 1. Descomprime el proyecto y entra a su carpeta:

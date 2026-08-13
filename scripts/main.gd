@@ -406,9 +406,16 @@ func _next_card() -> Array[int]:
 
 
 func _on_human_symbol(symbol_id: int) -> void:
-	if not round_active:
+	if not game_active or not round_active:
+		return
+	if not is_instance_valid(human_card) or not is_instance_valid(center_card):
 		return
 	var matching := _common_symbol(player_symbols, center_symbols)
+	if matching < 0:
+		status_label.text = "ERROR DE CARTAS — PREPARANDO OTRA RONDA"
+		round_active = false
+		call_deferred("_start_round")
+		return
 	if symbol_id == matching:
 		human_card.celebrate(symbol_id)
 		center_card.celebrate(symbol_id)
@@ -440,6 +447,8 @@ func _cpu_attempt(cpu_index: int, think_time: float, token: int) -> void:
 func _score_round(winner: int, symbol_id: int) -> void:
 	if not round_active:
 		return
+	if winner < 0 or winner >= scores.size() or symbol_id < 0:
+		return
 	round_active = false
 	cpu_round_token += 1
 	scores[winner] += 1
@@ -450,7 +459,8 @@ func _score_round(winner: int, symbol_id: int) -> void:
 		status_label.text = "¡GANASTE ESTA CARTA! ERA %s" % figure_name
 		status_label.add_theme_color_override("font_color", Color("#75ffad"))
 		_play_tone(760.0, 0.16, 0.22)
-		center_card.fly_away(Vector3(0, 0.28, 7.2))
+		if is_instance_valid(center_card):
+			center_card.fly_away(Vector3(0, 0.28, 7.2))
 		if OS.has_feature("mobile"):
 			Input.vibrate_handheld(28)
 	else:
@@ -458,7 +468,8 @@ func _score_round(winner: int, symbol_id: int) -> void:
 		status_label.add_theme_color_override("font_color", Color("#ffd36a"))
 		_play_tone(310.0, 0.14, 0.16)
 		var side := -1.0 if winner % 2 == 1 else 1.0
-		center_card.fly_away(Vector3(side * 9.0, 0.28, -3.0 + winner))
+		if is_instance_valid(center_card):
+			center_card.fly_away(Vector3(side * 9.0, 0.28, -3.0 + winner))
 
 	await get_tree().create_timer(0.68).timeout
 	if not game_active:
@@ -567,6 +578,12 @@ func _generate_projective_deck() -> Array:
 
 
 func _play_tone(frequency: float, duration: float, volume: float) -> void:
+	# Algunos controladores de audio Android se cierran al reemplazar un WAV
+	# generado durante un evento táctil. La vibración y animación siguen activas.
+	if OS.has_feature("mobile"):
+		return
+	if not is_instance_valid(audio_player):
+		return
 	var sample_rate := 22050
 	var sample_count := int(sample_rate * duration)
 	var data := PackedByteArray()
