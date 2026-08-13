@@ -27,7 +27,38 @@ jobs:
       - name: Preparar Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: "platform-tools platforms;android-35 build-tools;35.0.1"
+          packages: "platform-tools platforms;android-34 build-tools;34.0.0"
+
+      - name: Configurar Godot para Android
+        shell: bash
+        run: |
+          DEBUG_KEYSTORE="$RUNNER_TEMP/debug.keystore"
+          keytool -genkeypair \
+            -keystore "$DEBUG_KEYSTORE" \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000
+
+          mkdir -p "$HOME/.config/godot"
+          {
+            echo '[gd_resource type="EditorSettings" format=3]'
+            echo
+            echo '[resource]'
+            printf 'export/android/android_sdk_path = "%s"\n' "$ANDROID_SDK_ROOT"
+            printf 'export/android/java_sdk_path = "%s"\n' "$JAVA_HOME"
+            printf 'export/android/debug_keystore = "%s"\n' "$DEBUG_KEYSTORE"
+            echo 'export/android/debug_keystore_user = "androiddebugkey"'
+            echo 'export/android/debug_keystore_pass = "android"'
+          } > "$HOME/.config/godot/editor_settings-4.tres"
+
+          test -x "$JAVA_HOME/bin/java"
+          test -x "$ANDROID_SDK_ROOT/platform-tools/adb"
+          test -x "$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner"
+          test -f "$DEBUG_KEYSTORE"
 
       - name: Exportar con Godot
         id: export
@@ -40,6 +71,7 @@ jobs:
           export_debug: true
           archive_output: false
           cache: true
+          verbose: true
 
       - name: Publicar APK descargable
         uses: actions/upload-artifact@v4
