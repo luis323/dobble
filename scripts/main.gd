@@ -1,6 +1,7 @@
 extends Node3D
 
 const Card := preload("res://scripts/card_3d.gd")
+const Lan := preload("res://scripts/lan_manager.gd")
 const CPU_NAMES := ["CPU AZUL", "CPU ROSA", "CPU LIMA"]
 const WRONG_PENALTY_SECONDS := 5
 
@@ -49,14 +50,34 @@ var fx_root: Control
 var menu_glow_left: TextureRect
 var menu_glow_right: TextureRect
 var animation_time := 0.0
+var lan_manager: LanManager
+var network_mode := false
+var network_host := false
+var network_player_index := 0
+var network_peer_ids: Array[int] = []
+var network_round_accepting := false
+var network_penalties: Dictionary = {}
+var lan_layer: CanvasLayer
+var lan_status: Label
+var lan_rooms: OptionButton
+var lan_ip_input: LineEdit
+var lan_join_found_button: Button
+var lan_join_ip_button: Button
+var lan_start_button: Button
+var result_again_button: Button
 
 
 func _ready() -> void:
 	seed(hash(Time.get_datetime_string_from_system()))
+	lan_manager = Lan.new()
+	lan_manager.name = "LAN"
+	add_child(lan_manager, true)
 	_create_world()
 	_create_menu()
 	_create_hud()
 	_create_audio()
+	_create_lan_ui()
+	_connect_lan_signals()
 	_show_menu()
 
 
@@ -235,11 +256,25 @@ func _create_menu() -> void:
 	box.add_child(sound_toggle)
 
 	var play := Button.new()
-	play.text = "⚡  COMENZAR PARTIDA"
-	play.custom_minimum_size.y = 68
+	play.text = "🤖  JUGAR CONTRA CPU"
+	play.custom_minimum_size.y = 60
 	_style_button(play, Color("#16bce4"), 27)
 	play.pressed.connect(start_game)
 	box.add_child(play)
+
+	var host_lan := Button.new()
+	host_lan.text = "📡  CREAR SALA LAN / WI‑FI"
+	host_lan.custom_minimum_size.y = 56
+	_style_button(host_lan, Color("#2d58c8"), 21)
+	host_lan.pressed.connect(_create_lan_room)
+	box.add_child(host_lan)
+
+	var join_lan := Button.new()
+	join_lan.text = "🔎  BUSCAR Y UNIRSE A SALA"
+	join_lan.custom_minimum_size.y = 56
+	_style_button(join_lan, Color("#6842b8"), 21)
+	join_lan.pressed.connect(_show_lan_search)
+	box.add_child(join_lan)
 
 	var guide := Label.new()
 	guide.text = "ACIERTA  →  DESCARTA TU CARTA AL CENTRO\nEl primero que queda sin cartas gana."
@@ -250,7 +285,7 @@ func _create_menu() -> void:
 	box.add_child(guide)
 
 	var version_label := Label.new()
-	version_label.text = "VERSIÓN 1.3.0  •  PRIMERO SIN CARTAS GANA"
+	version_label.text = "VERSIÓN 1.4.0  •  MULTIJUGADOR LAN / WI‑FI"
 	version_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version_label.add_theme_font_size_override("font_size", 17)
 	version_label.add_theme_color_override("font_color", Color("#75ffad"))
@@ -387,12 +422,12 @@ func _create_hud() -> void:
 	result_title.add_theme_color_override("font_color", Color("#7cecff"))
 	result_box.add_child(result_title)
 
-	var again := Button.new()
-	again.text = "REVANCHA"
-	again.custom_minimum_size.y = 66
-	_style_button(again, Color("#17badf"), 23)
-	again.pressed.connect(start_game)
-	result_box.add_child(again)
+	result_again_button = Button.new()
+	result_again_button.text = "REVANCHA"
+	result_again_button.custom_minimum_size.y = 66
+	_style_button(result_again_button, Color("#17badf"), 23)
+	result_again_button.pressed.connect(_on_again_pressed)
+	result_box.add_child(result_again_button)
 
 	var back := Button.new()
 	back.text = "VOLVER AL MENÚ"
@@ -419,6 +454,464 @@ func _create_audio() -> void:
 	cpu_win_sound = _make_chime([[392.00, 0.11], [329.63, 0.18]], 0.18)
 	final_win_sound = _make_chime([[523.25, 0.11], [659.25, 0.11], [783.99, 0.11], [1046.50, 0.32]], 0.32)
 	final_lose_sound = _make_chime([[392.00, 0.16], [311.13, 0.16], [246.94, 0.34]], 0.24)
+
+
+func _create_lan_ui() -> void:
+	lan_layer = CanvasLayer.new()
+	lan_layer.layer = 30
+	add_child(lan_layer)
+
+	var shade := ColorRect.new()
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	shade.color = Color(0.015, 0.025, 0.09, 0.97)
+	lan_layer.add_child(shade)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.offset_left = 28
+	center.offset_top = 28
+	center.offset_right = -28
+	center.offset_bottom = -28
+	lan_layer.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(650, 0)
+	panel.add_theme_stylebox_override("panel", _panel_style(Color("#101a46"), Color("#62e7ff"), 30, 3))
+	center.add_child(panel)
+
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 16)
+	panel.add_child(box)
+
+	var title := Label.new()
+	title.text = "📡  MULTIJUGADOR LAN / WI‑FI"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 34)
+	title.add_theme_color_override("font_color", Color("#8cecff"))
+	box.add_child(title)
+
+	var explanation := Label.new()
+	explanation.text = "Todos los teléfonos deben estar conectados a la misma red Wi‑Fi."
+	explanation.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	explanation.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	explanation.add_theme_font_size_override("font_size", 19)
+	explanation.add_theme_color_override("font_color", Color("#d5e4ff"))
+	box.add_child(explanation)
+
+	lan_status = Label.new()
+	lan_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lan_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lan_status.custom_minimum_size.y = 84
+	lan_status.add_theme_font_size_override("font_size", 23)
+	lan_status.add_theme_color_override("font_color", Color("#75ffad"))
+	box.add_child(lan_status)
+
+	lan_rooms = OptionButton.new()
+	lan_rooms.custom_minimum_size.y = 58
+	_style_button(lan_rooms, Color("#263d77"), 19)
+	box.add_child(lan_rooms)
+
+	lan_join_found_button = Button.new()
+	lan_join_found_button.text = "UNIRSE A LA SALA ENCONTRADA"
+	lan_join_found_button.custom_minimum_size.y = 60
+	_style_button(lan_join_found_button, Color("#17a8cf"), 20)
+	lan_join_found_button.pressed.connect(_join_selected_lan_room)
+	box.add_child(lan_join_found_button)
+
+	var manual_label := Label.new()
+	manual_label.text = "SI NO APARECE, ESCRIBE LA IP DEL ANFITRIÓN:"
+	manual_label.add_theme_font_size_override("font_size", 16)
+	manual_label.add_theme_color_override("font_color", Color("#9fb4e7"))
+	box.add_child(manual_label)
+
+	lan_ip_input = LineEdit.new()
+	lan_ip_input.placeholder_text = "Ejemplo: 192.168.1.25"
+	lan_ip_input.custom_minimum_size.y = 58
+	lan_ip_input.add_theme_font_size_override("font_size", 21)
+	box.add_child(lan_ip_input)
+
+	lan_join_ip_button = Button.new()
+	lan_join_ip_button.text = "CONECTAR CON ESTA IP"
+	lan_join_ip_button.custom_minimum_size.y = 58
+	_style_button(lan_join_ip_button, Color("#6345b5"), 20)
+	lan_join_ip_button.pressed.connect(_join_manual_lan_room)
+	box.add_child(lan_join_ip_button)
+
+	lan_start_button = Button.new()
+	lan_start_button.text = "⚡  COMENZAR PARTIDA LAN"
+	lan_start_button.custom_minimum_size.y = 68
+	_style_button(lan_start_button, Color("#15b97a"), 23)
+	lan_start_button.pressed.connect(_start_lan_match_host)
+	box.add_child(lan_start_button)
+
+	var cancel := Button.new()
+	cancel.text = "VOLVER AL MENÚ"
+	cancel.custom_minimum_size.y = 56
+	_style_button(cancel, Color("#34416d"), 19)
+	cancel.pressed.connect(_cancel_lan)
+	box.add_child(cancel)
+	lan_layer.hide()
+
+
+func _connect_lan_signals() -> void:
+	lan_manager.lobby_changed.connect(_on_lan_lobby_changed)
+	lan_manager.connected_to_host.connect(_on_lan_connected)
+	lan_manager.connection_error.connect(_on_lan_error)
+	lan_manager.room_found.connect(_on_lan_room_found)
+	lan_manager.server_lost.connect(_on_lan_server_lost)
+
+
+func _create_lan_room() -> void:
+	network_mode = true
+	network_host = true
+	network_player_index = 0
+	var error := lan_manager.create_room()
+	if error != OK:
+		network_mode = false
+		network_host = false
+		_show_lan_message("No se pudo crear la sala. Prueba cerrar y abrir el juego.", true)
+		return
+	network_peer_ids.assign(lan_manager.peer_ids)
+	menu_layer.hide()
+	lan_layer.show()
+	_set_lan_join_controls(false)
+	lan_start_button.show()
+	lan_start_button.disabled = true
+	_update_host_lobby_text()
+
+
+func _show_lan_search() -> void:
+	lan_manager.leave()
+	network_mode = true
+	network_host = false
+	network_player_index = -1
+	network_peer_ids.clear()
+	menu_layer.hide()
+	lan_layer.show()
+	lan_rooms.clear()
+	lan_rooms.add_item("Buscando salas cercanas…")
+	lan_rooms.set_item_disabled(0, true)
+	_set_lan_join_controls(true)
+	lan_start_button.hide()
+	lan_status.text = "BUSCANDO SALAS EN LA RED WI‑FI…"
+	lan_status.add_theme_color_override("font_color", Color("#8cecff"))
+	var error := lan_manager.start_search()
+	if error != OK:
+		lan_status.text = "No se pudo buscar automáticamente. Puedes escribir la IP del anfitrión abajo."
+		lan_status.add_theme_color_override("font_color", Color("#ffd36a"))
+
+
+func _set_lan_join_controls(visible: bool) -> void:
+	lan_rooms.visible = visible
+	lan_join_found_button.visible = visible
+	lan_ip_input.visible = visible
+	lan_join_ip_button.visible = visible
+
+
+func _join_selected_lan_room() -> void:
+	if lan_rooms.item_count == 0 or lan_rooms.is_item_disabled(lan_rooms.selected):
+		lan_status.text = "Todavía no apareció ninguna sala."
+		return
+	var address := str(lan_rooms.get_item_metadata(lan_rooms.selected))
+	_join_lan_address(address)
+
+
+func _join_manual_lan_room() -> void:
+	_join_lan_address(lan_ip_input.text)
+
+
+func _join_lan_address(address: String) -> void:
+	var clean_address := address.strip_edges()
+	if clean_address.is_empty():
+		lan_status.text = "Escribe o selecciona la IP del anfitrión."
+		return
+	lan_status.text = "CONECTANDO A %s…" % clean_address
+	lan_status.add_theme_color_override("font_color", Color("#8cecff"))
+	var error := lan_manager.join_room(clean_address)
+	if error != OK:
+		_on_lan_error("No se pudo iniciar la conexión con %s." % clean_address)
+		return
+	lan_join_found_button.disabled = true
+	lan_join_ip_button.disabled = true
+
+
+func _on_lan_room_found(address: String, players: int) -> void:
+	for item_index in lan_rooms.item_count:
+		if str(lan_rooms.get_item_metadata(item_index)) == address:
+			lan_rooms.set_item_text(item_index, "SALA %s   •   %d/4 JUGADORES" % [address, players])
+			lan_rooms.set_item_disabled(item_index, false)
+			return
+	if lan_rooms.item_count == 1 and lan_rooms.is_item_disabled(0):
+		lan_rooms.clear()
+	var new_index := lan_rooms.item_count
+	lan_rooms.add_item("SALA %s   •   %d/4 JUGADORES" % [address, players])
+	lan_rooms.set_item_metadata(new_index, address)
+
+
+func _on_lan_connected() -> void:
+	lan_manager.stop_search()
+	lan_status.text = "CONECTADO. ESPERANDO QUE EL ANFITRIÓN COMIENCE…"
+	lan_status.add_theme_color_override("font_color", Color("#75ffad"))
+	_set_lan_join_controls(false)
+	request_lobby_state.rpc_id(1)
+
+
+func _on_lan_lobby_changed(ids: Array[int]) -> void:
+	if not network_host:
+		return
+	network_peer_ids.assign(ids)
+	if game_active:
+		_abort_network_match("Un jugador salió de la partida.")
+		return
+	_update_host_lobby_text()
+	receive_lobby_state.rpc(network_peer_ids, cards_option.get_selected_id())
+
+
+func _update_host_lobby_text() -> void:
+	var amount := network_peer_ids.size()
+	lan_status.text = "SALA CREADA\nIP: %s   •   JUGADORES: %d/4\nCartas por jugador: %d" % [lan_manager.local_ip(), amount, cards_option.get_selected_id()]
+	lan_status.add_theme_color_override("font_color", Color("#75ffad"))
+	lan_start_button.disabled = amount < 2
+
+
+func _on_lan_error(message: String) -> void:
+	lan_join_found_button.disabled = false
+	lan_join_ip_button.disabled = false
+	lan_status.text = message
+	lan_status.add_theme_color_override("font_color", Color("#ff829f"))
+
+
+func _on_lan_server_lost(message: String) -> void:
+	if network_mode:
+		_leave_network_to_menu(message)
+
+
+func _cancel_lan() -> void:
+	lan_manager.leave()
+	network_mode = false
+	network_host = false
+	network_round_accepting = false
+	network_peer_ids.clear()
+	lan_layer.hide()
+	hud_layer.hide()
+	menu_layer.show()
+
+
+func _show_lan_message(message: String, failed: bool = false) -> void:
+	menu_layer.hide()
+	lan_layer.show()
+	_set_lan_join_controls(false)
+	lan_start_button.hide()
+	lan_status.text = message
+	lan_status.add_theme_color_override("font_color", Color("#ff829f") if failed else Color("#75ffad"))
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func request_lobby_state() -> void:
+	if not network_host or not multiplayer.is_server():
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	receive_lobby_state.rpc_id(sender_id, network_peer_ids, cards_option.get_selected_id())
+
+
+@rpc("authority", "call_remote", "reliable")
+func receive_lobby_state(ids: Array, amount: int) -> void:
+	network_peer_ids.assign(ids)
+	network_player_index = network_peer_ids.find(multiplayer.get_unique_id())
+	lan_status.text = "CONECTADO COMO JUGADOR %d DE %d\n%d CARTAS PARA CADA JUGADOR\nEsperando al anfitrión…" % [network_player_index + 1, network_peer_ids.size(), amount]
+	lan_status.add_theme_color_override("font_color", Color("#75ffad"))
+
+
+func _start_lan_match_host() -> void:
+	if not network_host or not multiplayer.is_server():
+		return
+	if network_peer_ids.size() < 2:
+		lan_status.text = "Se necesitan al menos 2 jugadores."
+		return
+	lan_manager.stop_broadcasting()
+	network_mode = true
+	network_player_index = 0
+	network_penalties.clear()
+	_setup_new_match(network_peer_ids.size(), cards_option.get_selected_id())
+	network_round_accepting = true
+	receive_network_start.rpc(
+		network_peer_ids,
+		cards_per_player,
+		center_card_index,
+		active_card_indices,
+		_remaining_counts(),
+		scores
+	)
+
+
+@rpc("authority", "call_remote", "reliable")
+func receive_network_start(ids: Array, amount: int, central_index: int, active_indices: Array, remaining: Array, discarded: Array) -> void:
+	network_mode = true
+	network_host = false
+	network_peer_ids.assign(ids)
+	network_player_index = network_peer_ids.find(multiplayer.get_unique_id())
+	if network_player_index < 0:
+		return
+	total_players = network_peer_ids.size()
+	cards_per_player = amount
+	deck = _generate_projective_deck()
+	center_card_index = central_index
+	active_card_indices.assign(active_indices)
+	scores.assign(discarded)
+	_set_remote_remaining_counts(remaining)
+	round_number = 0
+	game_active = true
+	round_active = false
+	human_locked = false
+	result_panel.hide()
+	menu_layer.hide()
+	lan_layer.hide()
+	hud_layer.show()
+	result_again_button.hide()
+	_sync_active_symbols()
+	_start_round()
+
+
+func _remaining_counts() -> Array[int]:
+	var remaining: Array[int] = []
+	for pile in player_piles:
+		remaining.append(pile.size())
+	return remaining
+
+
+func _set_remote_remaining_counts(remaining: Array) -> void:
+	player_piles.clear()
+	for value in remaining:
+		var placeholder: Array[int] = []
+		placeholder.resize(int(value))
+		player_piles.append(placeholder)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func submit_network_symbol(symbol_id: int) -> void:
+	if not network_host or not multiplayer.is_server():
+		return
+	_server_submit_network_symbol(multiplayer.get_remote_sender_id(), symbol_id)
+
+
+func _server_submit_network_symbol(peer_id: int, symbol_id: int) -> void:
+	if not network_host or not game_active or not network_round_accepting or not round_active:
+		return
+	var player_index := network_peer_ids.find(peer_id)
+	if player_index < 0 or player_index >= active_card_indices.size():
+		return
+	var now := Time.get_ticks_msec()
+	if int(network_penalties.get(peer_id, 0)) > now:
+		return
+	var personal_symbols: Array = deck[active_card_indices[player_index]]
+	var matching := _common_symbol(personal_symbols, center_symbols)
+	if matching < 0:
+		return
+	if symbol_id != matching:
+		network_penalties[peer_id] = now + WRONG_PENALTY_SECONDS * 1000
+		if peer_id == 1:
+			receive_network_penalty()
+		else:
+			receive_network_penalty.rpc_id(peer_id)
+		return
+	network_round_accepting = false
+	_network_score_round(player_index, matching)
+
+
+@rpc("authority", "call_remote", "reliable")
+func receive_network_penalty() -> void:
+	if not game_active or not round_active or human_locked:
+		return
+	human_locked = true
+	penalty_token += 1
+	var current_penalty := penalty_token
+	_set_touch_enabled(false)
+	status_label.add_theme_color_override("font_color", Color("#ff829f"))
+	call_deferred("_wrong_penalty_countdown", current_penalty)
+
+
+func _network_score_round(winner: int, symbol_id: int) -> void:
+	if not network_host:
+		return
+	var finished := _discard_winner_card(winner)
+	var remaining := _remaining_counts()
+	receive_network_result.rpc(winner, symbol_id, center_card_index, active_card_indices, remaining, scores, finished)
+	receive_network_result(winner, symbol_id, center_card_index, active_card_indices, remaining, scores, finished)
+
+
+@rpc("authority", "call_remote", "reliable")
+func receive_network_result(winner: int, symbol_id: int, central_index: int, active_indices: Array, remaining: Array, discarded: Array, finished: bool) -> void:
+	if not network_mode or not game_active:
+		return
+	round_active = false
+	human_locked = false
+	cpu_round_token += 1
+	penalty_token += 1
+	transition_token += 1
+	var current_transition := transition_token
+	_set_touch_enabled(false)
+	center_card_index = central_index
+	active_card_indices.assign(active_indices)
+	scores.assign(discarded)
+	if not network_host:
+		_set_remote_remaining_counts(remaining)
+	_sync_active_symbols()
+	_update_score()
+
+	var figure_name := Card.get_symbol_name(symbol_id)
+	if winner == network_player_index:
+		status_label.text = "¡CORRECTO! DESCARTASTE %s" % figure_name
+		status_label.add_theme_color_override("font_color", Color("#75ffad"))
+		call_deferred("_play_stream", round_win_sound)
+		call_deferred("_round_celebration", figure_name)
+	else:
+		status_label.text = "JUGADOR %d DESCARTÓ CON %s" % [winner + 1, figure_name]
+		status_label.add_theme_color_override("font_color", Color("#ffd36a"))
+		call_deferred("_play_stream", cpu_win_sound)
+		call_deferred("_loss_feedback", false)
+
+	await get_tree().create_timer(0.72).timeout
+	if not game_active or current_transition != transition_token:
+		return
+	if finished:
+		_finish_game(winner)
+	else:
+		_start_round()
+		if network_host:
+			network_round_accepting = true
+
+
+@rpc("authority", "call_remote", "reliable")
+func receive_network_abort(message: String) -> void:
+	_leave_network_to_menu(message)
+
+
+func _abort_network_match(message: String) -> void:
+	if not network_host:
+		return
+	receive_network_abort.rpc(message)
+	_leave_network_to_menu(message)
+
+
+func _leave_network_to_menu(message: String) -> void:
+	game_active = false
+	round_active = false
+	network_round_accepting = false
+	_clear_cards()
+	lan_manager.leave()
+	network_mode = false
+	network_host = false
+	network_peer_ids.clear()
+	hud_layer.hide()
+	_show_lan_message(message, true)
+
+
+func _on_again_pressed() -> void:
+	if network_mode:
+		if network_host:
+			_start_lan_match_host()
+		return
+	start_game()
 
 
 func _toggle_sound() -> void:
@@ -462,12 +955,22 @@ func _play_stream(stream: AudioStreamWAV) -> void:
 
 
 func start_game() -> void:
+	if lan_manager.mode != "offline":
+		lan_manager.leave()
+	network_mode = false
+	network_host = false
+	network_player_index = 0
+	network_peer_ids.clear()
+	_setup_new_match(players_option.get_selected_id(), cards_option.get_selected_id())
+
+
+func _setup_new_match(participants: int, amount: int) -> void:
 	_clear_cards()
 	penalty_token += 1
 	transition_token += 1
 	human_locked = false
-	total_players = players_option.get_selected_id()
-	cards_per_player = cards_option.get_selected_id()
+	total_players = participants
+	cards_per_player = amount
 	difficulty = difficulty_option.get_selected_id()
 	scores.clear()
 	for _i in total_players:
@@ -494,11 +997,19 @@ func start_game() -> void:
 	round_active = false
 	result_panel.hide()
 	menu_layer.hide()
+	lan_layer.hide()
 	hud_layer.show()
+	result_again_button.visible = not network_mode or network_host
 	_start_round()
 
 
 func return_to_menu() -> void:
+	if network_mode or lan_manager.mode != "offline":
+		lan_manager.leave()
+		network_mode = false
+		network_host = false
+		network_round_accepting = false
+		network_peer_ids.clear()
 	game_active = false
 	round_active = false
 	cpu_round_token += 1
@@ -512,6 +1023,8 @@ func return_to_menu() -> void:
 func _show_menu() -> void:
 	menu_layer.show()
 	hud_layer.hide()
+	if is_instance_valid(lan_layer):
+		lan_layer.hide()
 
 
 func _create_human_card() -> void:
@@ -605,7 +1118,8 @@ func _start_round() -> void:
 	status_label.add_theme_color_override("font_color", Color("#7cecff"))
 	round_active = true
 	_set_touch_enabled(true)
-	_schedule_cpus(cpu_round_token)
+	if not network_mode:
+		_schedule_cpus(cpu_round_token)
 
 
 func _make_player_pile(amount: int) -> Array[int]:
@@ -643,18 +1157,34 @@ func _prepare_safe_top(player_index: int, excluded: Array[int]) -> int:
 
 func _sync_active_symbols() -> void:
 	center_symbols.assign(deck[center_card_index])
-	player_symbols.assign(deck[active_card_indices[0]])
+	var local_index := network_player_index if network_mode else 0
+	local_index = clampi(local_index, 0, active_card_indices.size() - 1)
+	player_symbols.assign(deck[active_card_indices[local_index]])
 	cpu_symbols.clear()
-	for player_index in range(1, total_players):
-		var cpu_card: Array[int] = []
-		cpu_card.assign(deck[active_card_indices[player_index]])
-		cpu_symbols.append(cpu_card)
+	if network_mode:
+		for player_index in total_players:
+			if player_index == local_index:
+				continue
+			var remote_card: Array[int] = []
+			remote_card.assign(deck[active_card_indices[player_index]])
+			cpu_symbols.append(remote_card)
+	else:
+		for player_index in range(1, total_players):
+			var cpu_card: Array[int] = []
+			cpu_card.assign(deck[active_card_indices[player_index]])
+			cpu_symbols.append(cpu_card)
 
 
 func _on_human_symbol(symbol_id: int) -> void:
 	if not game_active or not round_active or human_locked:
 		return
 	if not is_instance_valid(human_card) or not is_instance_valid(center_card):
+		return
+	if network_mode:
+		if network_host:
+			_server_submit_network_symbol(1, symbol_id)
+		else:
+			submit_network_symbol.rpc_id(1, symbol_id)
 		return
 	var matching := _common_symbol(player_symbols, center_symbols)
 	if matching < 0:
@@ -767,6 +1297,7 @@ func _discard_winner_card(winner: int) -> bool:
 func _finish_game(winner: int = -1) -> void:
 	game_active = false
 	round_active = false
+	network_round_accepting = false
 	human_locked = false
 	cpu_round_token += 1
 	penalty_token += 1
@@ -781,15 +1312,21 @@ func _finish_game(winner: int = -1) -> void:
 
 	var summary_parts: Array[String] = []
 	for index in player_piles.size():
-		var player_name: String = "TÚ" if index == 0 else CPU_NAMES[index - 1]
+		var player_name: String
+		if network_mode:
+			player_name = "TÚ" if index == network_player_index else "JUGADOR %d" % (index + 1)
+		else:
+			player_name = "TÚ" if index == 0 else CPU_NAMES[index - 1]
 		summary_parts.append("%s: %d restantes" % [player_name, player_piles[index].size()])
 
-	if winner == 0:
+	var local_won := winner == (network_player_index if network_mode else 0)
+	if local_won:
 		result_title.text = "¡GANASTE LA PARTIDA!\nFuiste el primero en quedar sin cartas\n\n%s" % "  •  ".join(summary_parts)
 		call_deferred("_play_stream", final_win_sound)
 		call_deferred("_super_celebration")
 	else:
-		result_title.text = "GANÓ %s\nFue el primero en quedar sin cartas\n\n%s" % [CPU_NAMES[winner - 1], "  •  ".join(summary_parts)]
+		var winner_name: String = "JUGADOR %d" % (winner + 1) if network_mode else CPU_NAMES[winner - 1]
+		result_title.text = "GANÓ %s\nFue el primero en quedar sin cartas\n\n%s" % [winner_name, "  •  ".join(summary_parts)]
 		call_deferred("_play_stream", final_lose_sound)
 		call_deferred("_loss_feedback", true)
 	result_panel.show()
@@ -941,9 +1478,15 @@ func _clear_cards() -> void:
 func _update_score() -> void:
 	if player_piles.is_empty():
 		return
-	var parts := ["TÚ:%d" % player_piles[0].size()]
-	for i in range(1, player_piles.size()):
-		parts.append("%s:%d" % [CPU_NAMES[i - 1].trim_prefix("CPU "), player_piles[i].size()])
+	var parts: Array[String] = []
+	for i in player_piles.size():
+		if network_mode:
+			var name := "TÚ" if i == network_player_index else "J%d" % (i + 1)
+			parts.append("%s:%d" % [name, player_piles[i].size()])
+		elif i == 0:
+			parts.append("TÚ:%d" % player_piles[i].size())
+		else:
+			parts.append("%s:%d" % [CPU_NAMES[i - 1].trim_prefix("CPU "), player_piles[i].size()])
 	score_label.text = "   •   ".join(parts)
 	progress_label.text = "RONDA %d   •   PRIMERO EN LLEGAR A 0 CARTAS GANA" % (round_number + 1)
 

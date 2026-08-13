@@ -4,7 +4,7 @@ Juego de reflejos original tipo Dobble para Android, hecho con Godot 4.4.1. No i
 
 ## Qué incluye
 
-- 1 jugador contra 1, 2 o 3 CPU (2–4 participantes en total).
+- 1 jugador contra 1, 2 o 3 CPU, o partidas LAN/Wi‑Fi entre 2 y 4 teléfonos.
 - Tres velocidades de CPU: Tranquila, Normal y Relámpago.
 - Pantalla completa dividida en dos: carta central arriba y carta del jugador abajo.
 - Figuras grandes, coloridas y reconocibles, con volumen 3D y zona táctil amplia.
@@ -69,6 +69,26 @@ Todos comienzan con la misma cantidad de cartas y hay una sola carta central. Ca
 - Todos reciben exactamente la misma cantidad y la central es una carta extra.
 - El ganador es inmediatamente el primer jugador o CPU que llega a cero cartas.
 - Conserva la penalización de 5 segundos, celebraciones, X roja y sonidos.
+
+## Versión 1.4.0 — LAN / Wi‑Fi
+
+- Permite jugar entre 2, 3 o 4 teléfonos Android conectados a la misma red Wi‑Fi.
+- Un jugador crea la sala y actúa como anfitrión; los demás pueden encontrarla automáticamente.
+- Incluye conexión por dirección IP manual cuando el router no permite descubrir la sala.
+- El anfitrión controla el mazo, las penalizaciones y quién tocó primero para que todos vean el mismo resultado.
+- Cada teléfono muestra la carta privada de su jugador abajo y la misma carta central arriba.
+- Mantiene el modo contra CPU, las cantidades de 20/30/40/50/70 cartas y la regla del primero sin cartas.
+- Usa solamente la red local: puerto de juego `7359` y descubrimiento `7360`.
+
+## Jugar por LAN o Wi‑Fi
+
+1. Todos deben instalar la misma versión de la APK y conectarse a la misma red Wi‑Fi.
+2. En un teléfono, elige la cantidad de cartas y pulsa **CREAR SALA LAN / WI‑FI**.
+3. En los otros teléfonos, pulsa **BUSCAR Y UNIRSE A SALA** y elige la sala encontrada.
+4. Si la sala no aparece, escribe en **IP manual** la dirección que muestra el teléfono anfitrión y pulsa **CONECTAR**.
+5. Cuando haya entre 2 y 4 jugadores conectados, el anfitrión pulsa **INICIAR PARTIDA**.
+
+No hace falta activar la depuración inalámbrica de Android ni usar ADB para jugar. Esa función solo se utilizó para obtener registros de errores durante las pruebas.
 
 ## Compilar desde Termux
 
