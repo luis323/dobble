@@ -28,6 +28,8 @@ var difficulty_option: OptionButton
 var result_panel: PanelContainer
 var result_title: Label
 var audio_player: AudioStreamPlayer
+var touch_layer: Control
+var touch_buttons: Array[Button] = []
 
 
 func _ready() -> void:
@@ -280,6 +282,13 @@ func _create_hud() -> void:
 	progress_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud_layer.add_child(progress_label)
 
+	# Capa táctil 2D: no usa raycast ni eventos físicos 3D en Android.
+	touch_layer = Control.new()
+	touch_layer.name = "BotonesFiguras"
+	touch_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	touch_layer.mouse_filter = Control.MOUSE_FILTER_PASS
+	hud_layer.add_child(touch_layer)
+
 	result_panel = PanelContainer.new()
 	result_panel.set_anchors_preset(Control.PRESET_CENTER)
 	result_panel.offset_left = -330
@@ -366,11 +375,68 @@ func _show_menu() -> void:
 
 func _create_human_card() -> void:
 	human_card = Card.new()
-	human_card.setup(player_symbols, true, 2.82)
+	human_card.setup(player_symbols, false, 2.82)
 	human_card.position = Vector3(0, 0.12, 3.15)
-	human_card.symbol_pressed.connect(_on_human_symbol)
 	add_child(human_card)
 	human_card.enter_animation(0.08)
+	_rebuild_touch_buttons()
+
+
+func _rebuild_touch_buttons() -> void:
+	_clear_touch_buttons()
+	if not is_instance_valid(touch_layer):
+		return
+
+	# La carta inferior está centrada al 75% de la pantalla. Estas posiciones
+	# coinciden con las seis figuras distribuidas alrededor de la carta 3D.
+	var touch_orbit := 166.0
+	var touch_radius := 73.0
+	for index in player_symbols.size():
+		var angle := -PI * 0.5 + TAU * float(index) / float(player_symbols.size())
+		var button := Button.new()
+		button.name = "Tocar_%s" % Card.get_symbol_name(player_symbols[index])
+		button.text = ""
+		button.tooltip_text = Card.get_symbol_name(player_symbols[index])
+		button.anchor_left = 0.5
+		button.anchor_right = 0.5
+		button.anchor_top = 0.75
+		button.anchor_bottom = 0.75
+		var offset := Vector2(cos(angle), sin(angle)) * touch_orbit
+		button.offset_left = offset.x - touch_radius
+		button.offset_right = offset.x + touch_radius
+		button.offset_top = offset.y - touch_radius
+		button.offset_bottom = offset.y + touch_radius
+		button.focus_mode = Control.FOCUS_NONE
+		button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		button.add_theme_stylebox_override("normal", _touch_style(Color(0, 0, 0, 0)))
+		button.add_theme_stylebox_override("hover", _touch_style(Color(0.18, 0.88, 1.0, 0.12)))
+		button.add_theme_stylebox_override("pressed", _touch_style(Color(0.18, 0.88, 1.0, 0.30)))
+		button.pressed.connect(_on_human_symbol.bind(player_symbols[index]))
+		touch_layer.add_child(button)
+		touch_buttons.append(button)
+
+
+func _touch_style(color: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = color
+	style.border_color = Color(0.35, 0.94, 1.0, color.a * 1.8)
+	style.set_border_width_all(3 if color.a > 0.0 else 0)
+	style.set_corner_radius_all(73)
+	return style
+
+
+func _set_touch_enabled(enabled: bool) -> void:
+	for button in touch_buttons:
+		if is_instance_valid(button):
+			button.disabled = not enabled
+			button.mouse_filter = Control.MOUSE_FILTER_STOP if enabled else Control.MOUSE_FILTER_IGNORE
+
+
+func _clear_touch_buttons() -> void:
+	for button in touch_buttons:
+		if is_instance_valid(button):
+			button.queue_free()
+	touch_buttons.clear()
 
 
 func _start_round() -> void:
@@ -395,6 +461,7 @@ func _start_round() -> void:
 	status_label.text = "¡BUSCA LA FIGURA QUE ESTÁ EN LAS DOS CARTAS!"
 	status_label.add_theme_color_override("font_color", Color("#7cecff"))
 	round_active = true
+	_set_touch_enabled(true)
 	_schedule_cpus(cpu_round_token)
 
 
@@ -450,6 +517,7 @@ func _score_round(winner: int, symbol_id: int) -> void:
 	if winner < 0 or winner >= scores.size() or symbol_id < 0:
 		return
 	round_active = false
+	_set_touch_enabled(false)
 	cpu_round_token += 1
 	scores[winner] += 1
 	_update_score()
@@ -516,6 +584,7 @@ func _clear_center_card() -> void:
 
 
 func _clear_cards() -> void:
+	_clear_touch_buttons()
 	if is_instance_valid(human_card):
 		human_card.queue_free()
 	human_card = null

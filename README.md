@@ -27,6 +27,12 @@ Todos miran la carta central de arriba. Cada jugador o CPU busca en su propia ca
 - Procesa la puntuación fuera del evento físico y valida las cartas antes de animarlas.
 - Mantiene la respuesta visual y la vibración; el sonido procedural queda desactivado en Android por estabilidad.
 
+## Versión 1.1.2
+
+- Sustituye por completo los eventos táctiles 3D por seis botones 2D transparentes.
+- Las áreas físicas de las figuras ya no reciben toques ni raycasts en Android.
+- Conserva las figuras, animaciones, puntuación y zonas táctiles grandes.
+
 ## Compilar desde Termux
 
 1. Descomprime el proyecto y entra a su carpeta:
