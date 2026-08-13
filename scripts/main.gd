@@ -34,6 +34,7 @@ var audio_player: AudioStreamPlayer
 var round_win_sound: AudioStreamWAV
 var cpu_win_sound: AudioStreamWAV
 var final_win_sound: AudioStreamWAV
+var final_lose_sound: AudioStreamWAV
 var sound_enabled := true
 var sound_toggle: Button
 var touch_layer: Control
@@ -236,7 +237,7 @@ func _create_menu() -> void:
 	box.add_child(guide)
 
 	var version_label := Label.new()
-	version_label.text = "VERSIÓN 1.2.1  •  PENALIZACIÓN DE 5 SEGUNDOS"
+	version_label.text = "VERSIÓN 1.2.2  •  X ROJA Y SONIDO DE DERROTA"
 	version_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version_label.add_theme_font_size_override("font_size", 17)
 	version_label.add_theme_color_override("font_color", Color("#75ffad"))
@@ -404,6 +405,7 @@ func _create_audio() -> void:
 	round_win_sound = _make_chime([[659.25, 0.10], [783.99, 0.10], [987.77, 0.20]], 0.30)
 	cpu_win_sound = _make_chime([[392.00, 0.11], [329.63, 0.18]], 0.18)
 	final_win_sound = _make_chime([[523.25, 0.11], [659.25, 0.11], [783.99, 0.11], [1046.50, 0.32]], 0.32)
+	final_lose_sound = _make_chime([[392.00, 0.16], [311.13, 0.16], [246.94, 0.34]], 0.24)
 
 
 func _toggle_sound() -> void:
@@ -670,6 +672,7 @@ func _score_round(winner: int, symbol_id: int) -> void:
 		status_label.text = "%s GANÓ LA CARTA CON %s" % [CPU_NAMES[winner - 1], figure_name]
 		status_label.add_theme_color_override("font_color", Color("#ffd36a"))
 		call_deferred("_play_stream", cpu_win_sound)
+		call_deferred("_loss_feedback", false)
 
 	# El sonido y la celebración son diferidos y 2D: el toque nunca anima física 3D.
 	await get_tree().create_timer(0.72).timeout
@@ -710,7 +713,53 @@ func _finish_game() -> void:
 		call_deferred("_super_celebration")
 	else:
 		result_title.text = "GANÓ %s\nCon %d cartas\n\n%s" % [winner_names[0], highest, "  •  ".join(summary_parts)]
+		call_deferred("_play_stream", final_lose_sound)
+		call_deferred("_loss_feedback", true)
 	result_panel.show()
+
+
+func _loss_feedback(final_loss: bool = false) -> void:
+	if not is_instance_valid(fx_root):
+		return
+	var red_x := Label.new()
+	red_x.name = "XDerrotaFinal" if final_loss else "XDerrotaRonda"
+	red_x.text = "✕"
+	red_x.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	red_x.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	red_x.anchor_left = 0.18
+	red_x.anchor_right = 0.82
+	if final_loss:
+		red_x.anchor_top = 0.20
+		red_x.anchor_bottom = 0.80
+		red_x.add_theme_font_size_override("font_size", 270)
+	else:
+		# La X de la ronda queda sobre la carta inferior del jugador.
+		red_x.anchor_top = 0.55
+		red_x.anchor_bottom = 0.95
+		red_x.add_theme_font_size_override("font_size", 210)
+	red_x.add_theme_color_override("font_color", Color("#ff234f"))
+	red_x.add_theme_color_override("font_shadow_color", Color(0.12, 0.0, 0.02, 0.88))
+	red_x.add_theme_constant_override("shadow_offset_x", 8)
+	red_x.add_theme_constant_override("shadow_offset_y", 10)
+	red_x.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	red_x.modulate.a = 0.0
+	red_x.scale = Vector2(2.2, 2.2)
+	red_x.pivot_offset = Vector2(230, 240 if final_loss else 170)
+	fx_root.add_child(red_x)
+
+	var x_tween := create_tween()
+	x_tween.set_parallel(true)
+	x_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	x_tween.tween_property(red_x, "scale", Vector2.ONE, 0.23)
+	x_tween.tween_property(red_x, "modulate:a", 1.0, 0.12)
+	x_tween.set_parallel(false)
+	x_tween.tween_interval(0.85 if final_loss else 0.28)
+	x_tween.set_parallel(true)
+	x_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	x_tween.tween_property(red_x, "scale", Vector2(0.72, 0.72), 0.24)
+	x_tween.tween_property(red_x, "modulate:a", 0.0, 0.24)
+	x_tween.set_parallel(false)
+	x_tween.tween_callback(red_x.queue_free)
 
 
 func _round_celebration(figure_name: String) -> void:

@@ -55,6 +55,13 @@ Todos miran la carta central de arriba. Cada jugador o CPU busca en su propia ca
 - Las CPU continúan compitiendo durante la penalización.
 - La cuenta regresiva se cancela de forma segura si termina la ronda o se vuelve al menú.
 
+## Versión 1.2.2 — señal de derrota
+
+- Si una CPU gana una carta, aparece una X roja animada sobre la carta inferior del jugador.
+- Reproduce un sonido descendente de derrota sin ejecutarlo directamente desde el toque.
+- Si el jugador pierde la partida completa, muestra una X roja mayor y un sonido final distinto.
+- Los empates no muestran la señal de derrota.
+
 ## Compilar desde Termux
 
 1. Descomprime el proyecto y entra a su carpeta:

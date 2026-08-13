@@ -36,8 +36,11 @@ func _run_test() -> void:
 		# Una CPU puede ganar y su puntuación no modifica a los demás.
 		var cpu_match: int = game._common_symbol(game.cpu_symbols[0], game.center_symbols)
 		game._score_round(1, cpu_match)
+		await process_frame
 		assert(game.scores[0] == 0)
 		assert(game.scores[1] == 1)
+		assert(game.fx_root.get_node_or_null("XDerrotaRonda") != null)
+		assert(game.audio_player.stream == game.cpu_win_sound)
 		for index in range(2, participant_count):
 			assert(game.scores[index] == 0)
 
@@ -61,6 +64,14 @@ func _run_test() -> void:
 		assert(awarded == game.prize_total)
 		assert(score_sum == game.prize_total)
 		assert(game.result_panel.visible)
+
+		# Una derrota final del jugador usa una X diferente y otro sonido.
+		game.scores[0] = 0
+		game.scores[1] = 99
+		game._finish_game()
+		await process_frame
+		assert(game.fx_root.get_node_or_null("XDerrotaFinal") != null)
+		assert(game.audio_player.stream == game.final_lose_sound)
 
 		game.return_to_menu()
 		game.queue_free()
