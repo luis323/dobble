@@ -11,7 +11,6 @@ Juego de reflejos original tipo Dobble para Android, hecho con Godot 4.4.1. No i
 - Control táctil, vibración, sonido, animaciones y modo horizontal inmersivo.
 - APK universal para Android ARM de 32 y 64 bits.
 - GitHub Actions listo para compilar sin instalar Godot en el teléfono.
-- Configuración CI explícita de Java 17, Android SDK 34 y keystore de depuración.
 
 ## Regla
 
@@ -47,3 +46,4 @@ En PC o Termux con Python:
 ```bash
 python tests/verificar_mazo.py
 ```
+
