@@ -6,15 +6,19 @@ Juego de reflejos original tipo Dobble para Android, hecho con Godot 4.4.1. No i
 
 - 1 jugador contra 1, 2 o 3 CPU (2–4 participantes en total).
 - Tres velocidades de CPU: Tranquila, Normal y Relámpago.
-- Mesa, cartas, luces, fichas y símbolos en 3D real.
+- Pantalla completa dividida en dos: carta central arriba y carta del jugador abajo.
+- Figuras grandes, coloridas y reconocibles, con volumen 3D y zona táctil amplia.
 - 31 cartas de 6 símbolos. Cualquier par comparte exactamente uno.
+- Cada participante conserva su propia carta durante toda la partida.
+- Marcador de cartas ganadas, cartas restantes y resultado con posibilidad de empate.
 - Control táctil, vibración, sonido, animaciones y modo horizontal inmersivo.
 - APK universal para Android ARM de 32 y 64 bits.
 - GitHub Actions listo para compilar sin instalar Godot en el teléfono.
+- Compilación directa con Godot oficial, Java 17, Android SDK 34 y keystore de depuración; no depende de `firebelley/godot-export`.
 
 ## Regla
 
-Mira la carta del centro y tu carta de abajo. Toca en tu carta el único símbolo repetido. El primer participante en llegar a 8 puntos gana.
+Todos miran la carta central de arriba. Cada jugador o CPU busca en su propia carta el único símbolo repetido. Si tú lo encuentras primero, toca esa figura en tu carta de abajo y ganas la carta central. Después aparece otra carta central. La partida termina cuando se agota el mazo y gana quien haya acumulado más cartas; puede haber empate.
 
 ## Compilar desde Termux
 
@@ -31,6 +35,14 @@ Mira la carta del centro y tu carta de abajo. Toca en tu carta el único símbol
    ./SUBIR_Y_COMPILAR_TERMUX.sh
    ```
 
+Si GitHub todavía muestra `firebelley/godot-export`, ejecuta el reparador visible
+desde la carpeta descomprimida (el repositorio local se supone en `~/dobble`):
+
+```bash
+chmod +x REPARAR_WORKFLOW_TERMUX.sh
+./REPARAR_WORKFLOW_TERMUX.sh ~/dobble
+```
+
 3. Cuando termine la acción, entra en el repositorio de GitHub → **Actions** → ejecución más reciente → **Artifacts** → `SimbolosRelampago3D-Android`.
 
 También puedes pulsar **Run workflow** dentro de Actions para volver a compilar cuando quieras.
@@ -46,4 +58,3 @@ En PC o Termux con Python:
 ```bash
 python tests/verificar_mazo.py
 ```
-

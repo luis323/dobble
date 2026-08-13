@@ -3,19 +3,42 @@ extends Node3D
 
 signal symbol_pressed(symbol_id: int)
 
+const SYMBOL_NAMES := [
+	"SOL", "LUNA", "ESTRELLA", "CORAZÓN", "RAYO", "FLOR",
+	"NUBE", "PARAGUAS", "AVIÓN", "TAZA", "TRÉBOL", "DIAMANTE",
+	"CRUZ", "FLECHA", "ESPIRAL", "OJO", "TRIÁNGULO", "CUADRADO",
+	"CÍRCULO", "CORONA", "NOTA", "PAZ", "YIN YANG", "NIEVE",
+	"COMETA", "ANCLA", "DOBLE NOTA", "RELOJ", "CASA", "BANDERA",
+	"SONRISA"
+]
+
+const SYMBOL_GLYPHS := [
+	"☀", "☾", "★", "♥", "ϟ", "✿",
+	"☁", "☂", "✈", "☕", "♣", "◆",
+	"✚", "➜", "◎", "◉", "▲", "■",
+	"●", "♛", "♪", "☮", "☯", "❄",
+	"✦", "⚓", "♫", "◷", "⌂", "⚑",
+	"☻"
+]
+
 const SYMBOL_COLORS := [
-	Color("#ff4d8d"), Color("#18d7ff"), Color("#ffd43b"),
-	Color("#7cff6b"), Color("#a875ff"), Color("#ff873b")
+	Color("#ff3f76"), Color("#16c8ff"), Color("#ffd12f"), Color("#77ef67"),
+	Color("#a96cff"), Color("#ff7a32"), Color("#00d8b4"), Color("#ff62d1"),
+	Color("#4f8cff"), Color("#d99743"), Color("#71c837"), Color("#e24fff")
 ]
 
 var interactive := false
-var card_radius := 2.7
+var card_radius := 2.8
 var symbols: Array[int] = []
 var _base: MeshInstance3D
 var _symbol_nodes: Array[Node3D] = []
 
 
-func setup(new_symbols: Array, can_touch: bool, radius: float = 2.7) -> void:
+static func get_symbol_name(symbol_id: int) -> String:
+	return SYMBOL_NAMES[symbol_id % SYMBOL_NAMES.size()]
+
+
+func setup(new_symbols: Array, can_touch: bool, radius: float = 2.8) -> void:
 	interactive = can_touch
 	card_radius = radius
 	symbols.assign(new_symbols)
@@ -32,34 +55,35 @@ func _build_card() -> void:
 	var disc := CylinderMesh.new()
 	disc.top_radius = card_radius
 	disc.bottom_radius = card_radius
-	disc.height = 0.18
-	disc.radial_segments = 64
+	disc.height = 0.20
+	disc.radial_segments = 72
 	_base.mesh = disc
-	_base.material_override = _material(Color("#f9fbff"), 0.22, 0.65)
+	_base.material_override = _material(Color("#fbfcff"), 0.18, 0.58)
 	add_child(_base)
 
 	var rim := MeshInstance3D.new()
 	var rim_mesh := TorusMesh.new()
-	rim_mesh.inner_radius = card_radius - 0.12
-	rim_mesh.outer_radius = card_radius + 0.04
-	rim_mesh.rings = 64
-	rim_mesh.ring_segments = 12
+	rim_mesh.inner_radius = card_radius - 0.13
+	rim_mesh.outer_radius = card_radius + 0.07
+	rim_mesh.rings = 72
+	rim_mesh.ring_segments = 14
 	rim.mesh = rim_mesh
-	rim.position.y = 0.12
-	rim.material_override = _material(Color("#37d9ff"), 0.15, 0.55, Color("#0ebaff"))
+	rim.position.y = 0.13
+	var rim_color := Color("#28e0ff") if interactive else Color("#b86bff")
+	rim.material_override = _material(rim_color, 0.22, 0.42, rim_color * 0.42)
 	add_child(rim)
 
 	var count := symbols.size()
-	var orbit := card_radius * 0.58
+	var orbit := card_radius * 0.59
 	for index in count:
 		var angle := -PI * 0.5 + TAU * float(index) / float(count)
-		var pos := Vector3(cos(angle) * orbit, 0.22, sin(angle) * orbit)
+		var pos := Vector3(cos(angle) * orbit, 0.24, sin(angle) * orbit)
 		_create_symbol(symbols[index], pos, index)
 
 
 func _create_symbol(symbol_id: int, pos: Vector3, index: int) -> void:
 	var area := Area3D.new()
-	area.name = "Simbolo_%02d" % symbol_id
+	area.name = "Figura_%s" % get_symbol_name(symbol_id)
 	area.position = pos
 	area.input_ray_pickable = interactive
 	area.set_meta("symbol_id", symbol_id)
@@ -67,55 +91,69 @@ func _create_symbol(symbol_id: int, pos: Vector3, index: int) -> void:
 	_symbol_nodes.append(area)
 
 	var collision := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(1.25, 0.55, 1.25)
-	collision.shape = box
+	var hitbox := BoxShape3D.new()
+	hitbox.size = Vector3(1.58, 0.72, 1.48)
+	collision.shape = hitbox
 	area.add_child(collision)
 
+	var color: Color = SYMBOL_COLORS[symbol_id % SYMBOL_COLORS.size()]
 	var pedestal := MeshInstance3D.new()
 	var pedestal_mesh := CylinderMesh.new()
-	pedestal_mesh.top_radius = 0.49
-	pedestal_mesh.bottom_radius = 0.55
-	pedestal_mesh.height = 0.18
-	pedestal_mesh.radial_segments = 24
+	pedestal_mesh.top_radius = 0.61
+	pedestal_mesh.bottom_radius = 0.67
+	pedestal_mesh.height = 0.20
+	pedestal_mesh.radial_segments = 28
 	pedestal.mesh = pedestal_mesh
-	var color: Color = SYMBOL_COLORS[symbol_id % SYMBOL_COLORS.size()]
-	pedestal.material_override = _material(color, 0.18, 0.38, color * 0.26)
+	pedestal.material_override = _material(color.darkened(0.08), 0.20, 0.32, color * 0.34)
 	area.add_child(pedestal)
 
 	var topper := MeshInstance3D.new()
-	topper.position = Vector3(0, 0.18, 0)
-	topper.scale = Vector3.ONE * (0.22 + float(symbol_id % 3) * 0.025)
+	topper.position = Vector3(0, 0.20, 0)
+	topper.scale = Vector3.ONE * (0.23 + float(symbol_id % 3) * 0.027)
 	match symbol_id % 4:
 		0:
 			topper.mesh = BoxMesh.new()
+			topper.rotation_degrees.y = 45.0
 		1:
 			topper.mesh = SphereMesh.new()
 		2:
-			var shape := CylinderMesh.new()
-			shape.top_radius = 0.8
-			shape.bottom_radius = 0.35
-			shape.height = 1.0
-			topper.mesh = shape
+			var cone := CylinderMesh.new()
+			cone.top_radius = 0.28
+			cone.bottom_radius = 0.92
+			cone.height = 1.0
+			topper.mesh = cone
 		_:
 			var torus := TorusMesh.new()
-			torus.inner_radius = 0.55
+			torus.inner_radius = 0.48
 			torus.outer_radius = 1.0
 			topper.mesh = torus
-	topper.material_override = _material(Color.WHITE, 0.08, 0.55)
+	topper.material_override = _material(Color.WHITE, 0.12, 0.46)
 	area.add_child(topper)
 
-	var label := Label3D.new()
-	label.text = str(symbol_id + 1)
-	label.position = Vector3(0, 0.54, 0)
-	label.font_size = 72
-	label.outline_size = 14
-	label.modulate = Color.WHITE
-	label.outline_modulate = Color("#11152c")
-	label.pixel_size = 0.0075
-	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	label.no_depth_test = true
-	area.add_child(label)
+	# Cada figura combina glifo, nombre, color y volumen 3D: no depende de números.
+	var glyph := Label3D.new()
+	glyph.text = SYMBOL_GLYPHS[symbol_id % SYMBOL_GLYPHS.size()]
+	glyph.position = Vector3(0, 0.58, -0.05)
+	glyph.font_size = 112
+	glyph.outline_size = 18
+	glyph.modulate = color.lightened(0.16)
+	glyph.outline_modulate = Color("#121731")
+	glyph.pixel_size = 0.0072
+	glyph.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	glyph.no_depth_test = true
+	area.add_child(glyph)
+
+	var name_label := Label3D.new()
+	name_label.text = get_symbol_name(symbol_id)
+	name_label.position = Vector3(0, 0.60, 0.48)
+	name_label.font_size = 34
+	name_label.outline_size = 10
+	name_label.modulate = Color.WHITE
+	name_label.outline_modulate = Color("#121731")
+	name_label.pixel_size = 0.0056
+	name_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	name_label.no_depth_test = true
+	area.add_child(name_label)
 
 	if interactive:
 		area.input_event.connect(_on_symbol_input.bind(symbol_id))
@@ -133,8 +171,8 @@ func celebrate(symbol_id: int) -> void:
 		if int(node.get_meta("symbol_id", -1)) == symbol_id:
 			var tween := create_tween()
 			tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-			tween.tween_property(node, "scale", Vector3.ONE * 1.42, 0.16)
-			tween.tween_property(node, "scale", Vector3.ONE, 0.22)
+			tween.tween_property(node, "scale", Vector3.ONE * 1.48, 0.16)
+			tween.tween_property(node, "scale", Vector3.ONE, 0.24)
 
 
 func wrong(symbol_id: int) -> void:
@@ -142,21 +180,28 @@ func wrong(symbol_id: int) -> void:
 		if int(node.get_meta("symbol_id", -1)) == symbol_id:
 			var origin := node.position
 			var tween := create_tween()
-			tween.tween_property(node, "position:x", origin.x - 0.18, 0.06)
-			tween.tween_property(node, "position:x", origin.x + 0.18, 0.08)
+			tween.tween_property(node, "position:x", origin.x - 0.22, 0.06)
+			tween.tween_property(node, "position:x", origin.x + 0.22, 0.08)
 			tween.tween_property(node, "position:x", origin.x, 0.06)
 
 
 func enter_animation(delay: float = 0.0) -> void:
 	var target_scale := scale
-	# Una escala exactamente cero hace que la física 3D no pueda invertir la base.
 	scale = Vector3.ONE * 0.01
-	rotation.y = -0.7
+	rotation.y = -0.70
 	var tween := create_tween()
 	tween.set_parallel(true)
 	tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween.tween_property(self, "scale", target_scale, 0.42).set_delay(delay)
 	tween.tween_property(self, "rotation:y", 0.0, 0.42).set_delay(delay)
+
+
+func fly_away(target: Vector3) -> void:
+	var tween := create_tween().set_parallel(true)
+	tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.tween_property(self, "position", target, 0.45)
+	tween.tween_property(self, "scale", Vector3.ONE * 0.12, 0.45)
+	tween.tween_property(self, "rotation:y", rotation.y + TAU, 0.45)
 
 
 func _material(color: Color, metallic: float, roughness: float, emission: Color = Color.BLACK) -> StandardMaterial3D:
@@ -167,5 +212,5 @@ func _material(color: Color, metallic: float, roughness: float, emission: Color 
 	if emission != Color.BLACK:
 		material.emission_enabled = true
 		material.emission = emission
-		material.emission_energy_multiplier = 0.7
+		material.emission_energy_multiplier = 0.8
 	return material

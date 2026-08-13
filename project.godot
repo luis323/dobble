@@ -10,10 +10,10 @@ config/icon="res://icon.svg"
 
 [display]
 
-window/size/viewport_width=1280
-window/size/viewport_height=720
-window/size/window_width_override=1280
-window/size/window_height_override=720
+window/size/viewport_width=720
+window/size/viewport_height=1280
+window/size/window_width_override=720
+window/size/window_height_override=1280
 window/stretch/mode="canvas_items"
 window/handheld/orientation=1
 window/energy_saving/keep_screen_on=true
@@ -22,6 +22,7 @@ window/energy_saving/keep_screen_on=true
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
 textures/default_filters/use_nearest_mipmap_filter=false
 environment/defaults/default_clear_color=Color(0.018, 0.025, 0.07, 1)
 
@@ -35,4 +36,3 @@ pause_game={
 [audio]
 
 driver/enable_input=false
-
