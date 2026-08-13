@@ -6,10 +6,13 @@ const WRONG_PENALTY_SECONDS := 5
 
 var total_players := 2
 var difficulty := 1
+var cards_per_player := 20
 var scores: Array[int] = []
 var deck: Array = []
-var deck_cursor := 0
-var prize_total := 0
+var player_piles: Array = []
+var active_card_indices: Array[int] = []
+var center_card_index := 0
+var round_number := 0
 var center_symbols: Array[int] = []
 var player_symbols: Array[int] = []
 var cpu_symbols: Array = []
@@ -19,6 +22,7 @@ var round_active := false
 var game_active := false
 var cpu_round_token := 0
 var penalty_token := 0
+var transition_token := 0
 var human_locked := false
 
 var menu_layer: CanvasLayer
@@ -27,6 +31,7 @@ var score_label: Label
 var status_label: Label
 var progress_label: Label
 var players_option: OptionButton
+var cards_option: OptionButton
 var difficulty_option: OptionButton
 var result_panel: PanelContainer
 var result_title: Label
@@ -204,6 +209,14 @@ func _create_menu() -> void:
 	players_option.custom_minimum_size.y = 54
 	box.add_child(players_option)
 
+	box.add_child(_setting_label("CARTAS PARA CADA JUGADOR"))
+	cards_option = OptionButton.new()
+	for amount in [20, 30, 40, 50, 70]:
+		cards_option.add_item("%d cartas por jugador" % amount, amount)
+	_style_button(cards_option, Color("#17606a"))
+	cards_option.custom_minimum_size.y = 54
+	box.add_child(cards_option)
+
 	box.add_child(_setting_label("VELOCIDAD DE LAS CPU"))
 	difficulty_option = OptionButton.new()
 	difficulty_option.add_item("Tranquila", 0)
@@ -229,7 +242,7 @@ func _create_menu() -> void:
 	box.add_child(play)
 
 	var guide := Label.new()
-	guide.text = "MIRA ARRIBA  →  ENCUENTRA LA PAREJA  →  TOCA ABAJO\nCada carta ganada suma un punto."
+	guide.text = "ACIERTA  →  DESCARTA TU CARTA AL CENTRO\nEl primero que queda sin cartas gana."
 	guide.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	guide.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	guide.add_theme_font_size_override("font_size", 18)
@@ -237,7 +250,7 @@ func _create_menu() -> void:
 	box.add_child(guide)
 
 	var version_label := Label.new()
-	version_label.text = "VERSIÓN 1.2.2  •  X ROJA Y SONIDO DE DERROTA"
+	version_label.text = "VERSIÓN 1.3.0  •  PRIMERO SIN CARTAS GANA"
 	version_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	version_label.add_theme_font_size_override("font_size", 17)
 	version_label.add_theme_color_override("font_color", Color("#75ffad"))
@@ -451,31 +464,37 @@ func _play_stream(stream: AudioStreamWAV) -> void:
 func start_game() -> void:
 	_clear_cards()
 	penalty_token += 1
+	transition_token += 1
 	human_locked = false
 	total_players = players_option.get_selected_id()
+	cards_per_player = cards_option.get_selected_id()
 	difficulty = difficulty_option.get_selected_id()
 	scores.clear()
 	for _i in total_players:
 		scores.append(0)
 
 	deck = _generate_projective_deck()
-	deck.shuffle()
-	deck_cursor = 0
+	player_piles.clear()
+	for _i in total_players:
+		player_piles.append(_make_player_pile(cards_per_player))
 
-	# Cada participante conserva una carta privada durante toda la partida.
-	player_symbols = _next_card()
-	cpu_symbols.clear()
-	for _i in range(total_players - 1):
-		cpu_symbols.append(_next_card())
-	prize_total = deck.size() - deck_cursor
+	# La central es una carta extra. Cada jugador recibe exactamente la cantidad
+	# elegida y conserva su montón hasta ir descartándolo carta por carta.
+	center_card_index = randi_range(0, deck.size() - 1)
+	active_card_indices.clear()
+	var excluded: Array[int] = [center_card_index]
+	for player_index in total_players:
+		var active_index := _prepare_safe_top(player_index, excluded)
+		active_card_indices.append(active_index)
+		excluded.append(active_index)
+	_sync_active_symbols()
+	round_number = 0
 
 	game_active = true
 	round_active = false
 	result_panel.hide()
 	menu_layer.hide()
 	hud_layer.show()
-	_create_human_card()
-	_update_score()
 	_start_round()
 
 
@@ -484,6 +503,7 @@ func return_to_menu() -> void:
 	round_active = false
 	cpu_round_token += 1
 	penalty_token += 1
+	transition_token += 1
 	human_locked = false
 	_clear_cards()
 	_show_menu()
@@ -565,17 +585,15 @@ func _clear_touch_buttons() -> void:
 func _start_round() -> void:
 	if not game_active:
 		return
-	if deck_cursor >= deck.size():
-		_finish_game()
-		return
 
+	transition_token += 1
 	round_active = false
 	cpu_round_token += 1
 	penalty_token += 1
 	human_locked = false
-	_clear_center_card()
-
-	center_symbols = _next_card()
+	_clear_cards()
+	_sync_active_symbols()
+	_create_human_card()
 	center_card = Card.new()
 	center_card.setup(center_symbols, false, 2.82)
 	center_card.position = Vector3(0, 0.10, -3.15)
@@ -590,11 +608,47 @@ func _start_round() -> void:
 	_schedule_cpus(cpu_round_token)
 
 
-func _next_card() -> Array[int]:
-	var value: Array[int] = []
-	value.assign(deck[deck_cursor])
-	deck_cursor += 1
-	return value
+func _make_player_pile(amount: int) -> Array[int]:
+	var pile: Array[int] = []
+	var bag: Array[int] = []
+	while pile.size() < amount:
+		if bag.is_empty():
+			for card_index in deck.size():
+				bag.append(card_index)
+			bag.shuffle()
+		pile.append(bag.pop_back())
+	return pile
+
+
+func _prepare_safe_top(player_index: int, excluded: Array[int]) -> int:
+	var pile: Array = player_piles[player_index]
+	for position in range(pile.size() - 1, -1, -1):
+		var candidate := int(pile[position])
+		if not excluded.has(candidate):
+			var previous_top = pile[pile.size() - 1]
+			pile[pile.size() - 1] = candidate
+			pile[position] = previous_top
+			player_piles[player_index] = pile
+			return candidate
+
+	# Si las últimas repeticiones coincidieran con cartas visibles, se cambia
+	# solamente el diseño de esa carta por otro de los 31 diseños válidos.
+	for candidate in deck.size():
+		if not excluded.has(candidate):
+			pile[pile.size() - 1] = candidate
+			player_piles[player_index] = pile
+			return candidate
+	return 0
+
+
+func _sync_active_symbols() -> void:
+	center_symbols.assign(deck[center_card_index])
+	player_symbols.assign(deck[active_card_indices[0]])
+	cpu_symbols.clear()
+	for player_index in range(1, total_players):
+		var cpu_card: Array[int] = []
+		cpu_card.assign(deck[active_card_indices[player_index]])
+		cpu_symbols.append(cpu_card)
 
 
 func _on_human_symbol(symbol_id: int) -> void:
@@ -659,60 +713,83 @@ func _score_round(winner: int, symbol_id: int) -> void:
 	_set_touch_enabled(false)
 	cpu_round_token += 1
 	penalty_token += 1
-	scores[winner] += 1
+	transition_token += 1
+	var current_transition := transition_token
+	var finished := _discard_winner_card(winner)
 	_update_score()
 
 	var figure_name: String = Card.get_symbol_name(symbol_id)
 	if winner == 0:
-		status_label.text = "¡GANASTE ESTA CARTA! ERA %s" % figure_name
+		status_label.text = "¡CORRECTO! DESCARTASTE %s" % figure_name
 		status_label.add_theme_color_override("font_color", Color("#75ffad"))
 		call_deferred("_play_stream", round_win_sound)
 		call_deferred("_round_celebration", figure_name)
 	else:
-		status_label.text = "%s GANÓ LA CARTA CON %s" % [CPU_NAMES[winner - 1], figure_name]
+		status_label.text = "%s DESCARTÓ SU CARTA CON %s" % [CPU_NAMES[winner - 1], figure_name]
 		status_label.add_theme_color_override("font_color", Color("#ffd36a"))
 		call_deferred("_play_stream", cpu_win_sound)
 		call_deferred("_loss_feedback", false)
 
 	# El sonido y la celebración son diferidos y 2D: el toque nunca anima física 3D.
 	await get_tree().create_timer(0.72).timeout
-	if not game_active:
+	if not game_active or current_transition != transition_token:
 		return
-	if deck_cursor >= deck.size():
-		_finish_game()
+	if finished:
+		_finish_game(winner)
 	else:
 		_start_round()
 
 
-func _finish_game() -> void:
+func _discard_winner_card(winner: int) -> bool:
+	if winner < 0 or winner >= player_piles.size():
+		return false
+	var discarded_index := active_card_indices[winner]
+	center_card_index = discarded_index
+	var pile: Array = player_piles[winner]
+	if not pile.is_empty():
+		pile.pop_back()
+	player_piles[winner] = pile
+	scores[winner] += 1
+	round_number += 1
+	if pile.is_empty():
+		center_symbols.assign(deck[center_card_index])
+		return true
+
+	var excluded: Array[int] = [center_card_index]
+	for player_index in active_card_indices.size():
+		if player_index != winner:
+			excluded.append(active_card_indices[player_index])
+	active_card_indices[winner] = _prepare_safe_top(winner, excluded)
+	_sync_active_symbols()
+	return false
+
+
+func _finish_game(winner: int = -1) -> void:
 	game_active = false
 	round_active = false
 	human_locked = false
 	cpu_round_token += 1
 	penalty_token += 1
-
-	var highest := -1
-	for score in scores:
-		highest = maxi(highest, score)
-
-	var winner_names: Array[String] = []
-	for index in scores.size():
-		if scores[index] == highest:
-			winner_names.append("TÚ" if index == 0 else CPU_NAMES[index - 1])
+	transition_token += 1
+	if winner < 0:
+		for player_index in player_piles.size():
+			if player_piles[player_index].is_empty():
+				winner = player_index
+				break
+	if winner < 0:
+		winner = 0
 
 	var summary_parts: Array[String] = []
-	for index in scores.size():
+	for index in player_piles.size():
 		var player_name: String = "TÚ" if index == 0 else CPU_NAMES[index - 1]
-		summary_parts.append("%s: %d" % [player_name, scores[index]])
+		summary_parts.append("%s: %d restantes" % [player_name, player_piles[index].size()])
 
-	if winner_names.size() > 1:
-		result_title.text = "¡EMPATE!\n%s\n\n%s" % [" Y ".join(winner_names), "  •  ".join(summary_parts)]
-	elif winner_names[0] == "TÚ":
-		result_title.text = "¡GANASTE LA PARTIDA!\nConseguiste %d cartas\n\n%s" % [highest, "  •  ".join(summary_parts)]
+	if winner == 0:
+		result_title.text = "¡GANASTE LA PARTIDA!\nFuiste el primero en quedar sin cartas\n\n%s" % "  •  ".join(summary_parts)
 		call_deferred("_play_stream", final_win_sound)
 		call_deferred("_super_celebration")
 	else:
-		result_title.text = "GANÓ %s\nCon %d cartas\n\n%s" % [winner_names[0], highest, "  •  ".join(summary_parts)]
+		result_title.text = "GANÓ %s\nFue el primero en quedar sin cartas\n\n%s" % [CPU_NAMES[winner - 1], "  •  ".join(summary_parts)]
 		call_deferred("_play_stream", final_lose_sound)
 		call_deferred("_loss_feedback", true)
 	result_panel.show()
@@ -766,7 +843,7 @@ func _round_celebration(figure_name: String) -> void:
 	if not is_instance_valid(fx_root) or not game_active:
 		return
 	var banner := Label.new()
-	banner.text = "⚡  +1 CARTA  •  %s  ⚡" % figure_name
+	banner.text = "⚡  −1 CARTA  •  %s  ⚡" % figure_name
 	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	banner.anchor_left = 0.08
 	banner.anchor_right = 0.92
@@ -862,16 +939,13 @@ func _clear_cards() -> void:
 
 
 func _update_score() -> void:
-	if scores.is_empty():
+	if player_piles.is_empty():
 		return
-	var parts := ["TÚ: %d CARTAS" % scores[0]]
-	for i in range(1, scores.size()):
-		parts.append("%s: %d" % [CPU_NAMES[i - 1], scores[i]])
+	var parts := ["TÚ:%d" % player_piles[0].size()]
+	for i in range(1, player_piles.size()):
+		parts.append("%s:%d" % [CPU_NAMES[i - 1].trim_prefix("CPU "), player_piles[i].size()])
 	score_label.text = "   •   ".join(parts)
-
-	var played := clampi(deck_cursor - total_players, 0, prize_total)
-	var remaining := maxi(0, deck.size() - deck_cursor)
-	progress_label.text = "CARTA CENTRAL %d DE %d   •   QUEDAN %d" % [played, prize_total, remaining]
+	progress_label.text = "RONDA %d   •   PRIMERO EN LLEGAR A 0 CARTAS GANA" % (round_number + 1)
 
 
 func _cpu_delay_range() -> Vector2:

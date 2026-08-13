@@ -8,9 +8,9 @@ Juego de reflejos original tipo Dobble para Android, hecho con Godot 4.4.1. No i
 - Tres velocidades de CPU: Tranquila, Normal y Relámpago.
 - Pantalla completa dividida en dos: carta central arriba y carta del jugador abajo.
 - Figuras grandes, coloridas y reconocibles, con volumen 3D y zona táctil amplia.
-- 31 cartas de 6 símbolos. Cualquier par comparte exactamente uno.
-- Cada participante conserva su propia carta durante toda la partida.
-- Marcador de cartas ganadas, cartas restantes y resultado con posibilidad de empate.
+- 31 diseños matemáticos de 6 símbolos. Cualquier par distinto comparte exactamente uno.
+- Montones de 20, 30, 40, 50 o 70 cartas para cada jugador.
+- Marcador de cartas restantes y final inmediato cuando alguien llega a cero.
 - Control táctil invisible, sonido original, celebraciones 2D y modo vertical inmersivo.
 - APK universal para Android ARM de 32 y 64 bits.
 - GitHub Actions listo para compilar sin instalar Godot en el teléfono.
@@ -18,7 +18,7 @@ Juego de reflejos original tipo Dobble para Android, hecho con Godot 4.4.1. No i
 
 ## Regla
 
-Todos miran la carta central de arriba. Cada jugador o CPU busca en su propia carta el único símbolo repetido. Si tú lo encuentras primero, toca esa figura en tu carta de abajo y ganas la carta central. Después aparece otra carta central. La partida termina cuando se agota el mazo y gana quien haya acumulado más cartas; puede haber empate.
+Todos comienzan con la misma cantidad de cartas y hay una sola carta central. Cada jugador o CPU busca el único símbolo repetido entre su carta superior y la carta central. Quien acierta descarta su carta poniéndola como nueva carta central y muestra la siguiente de su montón. El primero que queda sin cartas gana.
 
 ## Versión 1.1.1
 
@@ -61,6 +61,14 @@ Todos miran la carta central de arriba. Cada jugador o CPU busca en su propia ca
 - Reproduce un sonido descendente de derrota sin ejecutarlo directamente desde el toque.
 - Si el jugador pierde la partida completa, muestra una X roja mayor y un sonido final distinto.
 - Los empates no muestran la señal de derrota.
+
+## Versión 1.3.0 — primero sin cartas
+
+- Cambia la partida al modo de descarte: la carta acertada pasa al centro.
+- Permite elegir 20, 30, 40, 50 o 70 cartas para cada jugador.
+- Todos reciben exactamente la misma cantidad y la central es una carta extra.
+- El ganador es inmediatamente el primer jugador o CPU que llega a cero cartas.
+- Conserva la penalización de 5 segundos, celebraciones, X roja y sonidos.
 
 ## Compilar desde Termux
 
